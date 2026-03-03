@@ -1079,7 +1079,7 @@ async def get_run_detail(
     if not routine:
         raise HTTPException(status_code=404, detail="Routine not found")
 
-    run = await routine_service.get_run(db, uuid.UUID(run_id), routine.id)
+    run = await routine_service.get_run(db, uuid.UUID(run_id), user.id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
 

@@ -1416,6 +1416,7 @@ export default function RoutineDetailPage() {
   const [deletingChainId, setDeletingChainId] = useState<string | null>(null);
   const [deletingWebhookId, setDeletingWebhookId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [runElapsed, setRunElapsed] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const [updatingModel, setUpdatingModel] = useState(false);
   const availableModels = useAvailableModels();
@@ -1537,20 +1538,21 @@ export default function RoutineDetailPage() {
 
   async function handleRun() {
     setRunning(true);
+    setRunElapsed(0);
+    const timer = setInterval(() => setRunElapsed((s) => s + 1), 1000);
     try {
       await api.post(`/routines/${routineId}/run`, {});
-      toast.success("Ausfuhrung gestartet.");
-      // Refresh runs after a short delay
-      setTimeout(() => {
-        setRunsOffset(0);
-        fetchRuns(0, false);
-      }, 1500);
+      toast.success("Ausfuhrung abgeschlossen.");
+      setRunsOffset(0);
+      fetchRuns(0, false);
+      fetchRoutine();
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Fehler beim Starten.";
+      const msg = err instanceof Error ? err.message : "Fehler beim Starten.";
       toast.error(msg);
     } finally {
+      clearInterval(timer);
       setRunning(false);
+      setRunElapsed(0);
     }
   }
 
@@ -1718,7 +1720,7 @@ export default function RoutineDetailPage() {
           {running ? (
             <>
               <RefreshCw className="size-3.5 animate-spin" />
-              Startet...
+              Läuft... {runElapsed > 0 ? `(${runElapsed}s)` : ""}
             </>
           ) : (
             <>
