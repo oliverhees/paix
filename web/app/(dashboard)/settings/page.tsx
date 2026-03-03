@@ -614,6 +614,7 @@ interface ProviderKeyState {
   deleting: boolean;
   validating: boolean;
   validationResult: { valid: boolean; error?: string } | null;
+  mode?: "api_key" | "subscription";
 }
 
 const INITIAL_PROVIDERS: Omit<ProviderKeyState, "keyHint" | "inputValue" | "showInput" | "saving" | "deleting" | "validating" | "validationResult">[] = [
@@ -651,6 +652,7 @@ function APIKeysSection() {
       validationResult: null,
     }))
   );
+  const [anthropicMode, setAnthropicMode] = useState<"api_key" | "subscription">("api_key");
 
   useEffect(() => {
     const fetchKeys = async () => {
@@ -662,6 +664,10 @@ function APIKeysSection() {
             return { ...p, keyHint: found ? found.key_hint : null };
           })
         );
+        const anthropicKey = data.keys.find((k: {provider: string; key_hint: string}) => k.provider === "anthropic");
+        if (anthropicKey?.key_hint?.includes("oat01")) {
+          setAnthropicMode("subscription");
+        }
       } catch {
         toast.error("API-Schluessel konnten nicht geladen werden");
       } finally {
@@ -826,6 +832,44 @@ function APIKeysSection() {
               </p>
             )}
 
+            {/* Anthropic mode toggle */}
+            {p.provider === "anthropic" && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setAnthropicMode("api_key"); handleInputChange(p.provider, ""); }}
+                  className={`flex-1 rounded-md border px-3 py-2 text-xs font-medium transition-colors ${
+                    anthropicMode === "api_key"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  🔑 API Key
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAnthropicMode("subscription"); handleInputChange(p.provider, ""); }}
+                  className={`flex-1 rounded-md border px-3 py-2 text-xs font-medium transition-colors ${
+                    anthropicMode === "subscription"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  ⚡ Claude Subscription
+                </button>
+              </div>
+            )}
+
+            {/* Anthropic subscription info box */}
+            {p.provider === "anthropic" && anthropicMode === "subscription" && (
+              <div className="rounded-md bg-muted/50 border border-border p-3 text-xs space-y-2">
+                <p className="font-medium">Claude Pro/Max Subscription nutzen</p>
+                <p className="text-muted-foreground">Token generieren mit Claude Code CLI:</p>
+                <code className="block bg-background rounded px-2 py-1 font-mono text-xs">claude setup-token</code>
+                <p className="text-muted-foreground">Token beginnt mit <code className="font-mono">sk-ant-oat01-</code></p>
+              </div>
+            )}
+
             {/* Input row */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -833,7 +877,9 @@ function APIKeysSection() {
                   type={p.showInput ? "text" : "password"}
                   value={p.inputValue}
                   onChange={(e) => handleInputChange(p.provider, e.target.value)}
-                  placeholder={p.placeholder}
+                  placeholder={p.provider === "anthropic"
+                    ? (anthropicMode === "subscription" ? "sk-ant-oat01-..." : "sk-ant-api03-...")
+                    : p.placeholder}
                   disabled={p.saving}
                   className="pr-10"
                 />
