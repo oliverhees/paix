@@ -24,6 +24,26 @@ function extractLanguage(className?: string): string {
 }
 
 const INITIAL_COMPONENTS: Partial<Components> = {
+  table: function TableComponent({ children }) {
+    return (
+      <div className="overflow-x-auto my-3">
+        <table className="w-full border-collapse text-sm">{children}</table>
+      </div>
+    );
+  },
+  thead: function TheadComponent({ children }) {
+    return <thead className="bg-muted/60">{children}</thead>;
+  },
+  th: function ThComponent({ children }) {
+    return (
+      <th className="border border-border px-3 py-2 text-left font-semibold whitespace-nowrap">
+        {children}
+      </th>
+    );
+  },
+  td: function TdComponent({ children }) {
+    return <td className="border border-border px-3 py-2">{children}</td>;
+  },
   code: function CodeComponent({ className, children, ...props }) {
     const isInline =
       !props.node?.position?.start.line ||

@@ -45,6 +45,7 @@ class ChatService:
             content=content,
             skill_used=skill_used,
             sources=sources,
+            created_at=datetime.now(timezone.utc),  # Wall-clock time, not transaction time
         )
         db.add(message)
 
