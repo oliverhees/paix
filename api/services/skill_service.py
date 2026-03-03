@@ -138,6 +138,35 @@ SKILL_DEFINITIONS: dict[str, dict] = {
 
 
 # ──────────────────────────────────────────────
+# Built-in Tool Definitions (always available, not user-created)
+# ──────────────────────────────────────────────
+
+WEB_SEARCH_TOOL = {
+    "name": "web_search",
+    "description": (
+        "Search the internet for current information, news, and real-time data. "
+        "Use this when you need up-to-date information that may not be in your training data, "
+        "such as current news, prices, events, or recent developments."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "The search query. Be specific and use natural language.",
+            },
+            "max_results": {
+                "type": "integer",
+                "description": "Maximum number of results to return (1-10, default 5)",
+                "default": 5,
+            },
+        },
+        "required": ["query"],
+    },
+}
+
+
+# ──────────────────────────────────────────────
 # Default Skills as SKILL.md (Anthropic Open Standard)
 # ──────────────────────────────────────────────
 
@@ -356,7 +385,9 @@ class SkillService:
         )
         active_configs = result.scalars().all()
 
-        tools: list[dict] = []
+        # Always include built-in tools
+        tools: list[dict] = [WEB_SEARCH_TOOL]
+
         for config in active_configs:
             definition = self._resolve_definition(config)
             if not definition.get("description"):
@@ -400,6 +431,54 @@ class SkillService:
         Delegates to the existing execute() method and returns
         the result as a string suitable for tool_result content.
         """
+        # Handle built-in tools that don't go through the LLM skill pipeline
+        if tool_name == "web_search":
+            import os
+            query = tool_input.get("query", "")
+            max_results = min(tool_input.get("max_results", 5), 5)  # Cap at 5
+
+            brave_api_key = os.environ.get("BRAVE_SEARCH_API_KEY")
+
+            if brave_api_key:
+                # Brave Search API — reliable, no rate limits, designed for AI agents
+                import httpx
+                url = "https://api.search.brave.com/res/v1/web/search"
+                headers = {
+                    "Accept": "application/json",
+                    "Accept-Encoding": "gzip",
+                    "X-Subscription-Token": brave_api_key,
+                }
+                params = {"q": query, "count": max_results, "search_lang": "de", "freshness": "pd"}  # pd = past day
+                try:
+                    async with httpx.AsyncClient(timeout=10) as client:
+                        resp = await client.get(url, headers=headers, params=params)
+                        resp.raise_for_status()
+                        data = resp.json()
+                        results = []
+                        for r in data.get("web", {}).get("results", []):
+                            results.append(f"**{r.get('title','?')}**\n{r.get('url','')}\n{r.get('description','')}")
+                        if not results:
+                            return f"No current results found for: {query}"
+                        return f"Search results for '{query}':\n\n" + "\n\n---\n\n".join(results)
+                except Exception as e:
+                    return f"Search failed: {str(e)}"
+            else:
+                # DuckDuckGo fallback — no API key needed, but may rate-limit
+                try:
+                    from duckduckgo_search import DDGS
+                    results = []
+                    with DDGS() as ddgs:
+                        for r in ddgs.text(query, max_results=max_results):
+                            results.append(f"**{r['title']}**\n{r['href']}\n{r['body']}")
+                    if not results:
+                        return (
+                            f"No results found for '{query}'. "
+                            "Tip: Set BRAVE_SEARCH_API_KEY in .env for reliable web search."
+                        )
+                    return f"Search results for '{query}':\n\n" + "\n\n---\n\n".join(results)
+                except Exception as e:
+                    return f"Search unavailable: {str(e)}. Set BRAVE_SEARCH_API_KEY in .env for reliable web search."
+
         # Build user_input from tool_input for the skill
         parts = []
         for key, value in tool_input.items():
