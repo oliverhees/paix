@@ -1,0 +1,10 @@
+{
+  "index": "Übersicht",
+  "setup": "Lokales Setup",
+  "architecture": "Architektur",
+  "api": "API Referenz",
+  "database": "Datenbank",
+  "deployment": "Deployment",
+  "decisions": "Entscheidungen",
+  "security": "Sicherheit"
+}

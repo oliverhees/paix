@@ -1,0 +1,1986 @@
+"use client";
+
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import {
+  Zap,
+  Play,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  ChevronLeft,
+  Loader2,
+  ScrollText,
+  Settings2,
+  Plus,
+  Trash2,
+  Wrench,
+  Sparkles,
+  Send,
+  RotateCcw,
+  Bot,
+  User,
+  FileText,
+  Eye,
+  Code2,
+  Save,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
+import {
+  settingsService,
+  type SkillItem,
+  type SkillDetail,
+  type SkillLogEntry,
+  type SkillParameterDef,
+  type McpServer,
+  type SkillCreateRequest,
+  type SkillGenerateMessage,
+  type SkillGenerateResponse,
+} from "@/lib/settings-service";
+
+// ─── Simple Markdown Renderer ────────────────────────────────────────────────
+
+function renderMarkdownToHtml(md: string): string {
+  let html = md
+    // Escape HTML
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // Code blocks (```...```)
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, _lang, code) => {
+    return `<pre class="bg-zinc-900 border border-zinc-800 rounded-lg p-3 overflow-x-auto my-3"><code class="text-xs font-mono text-zinc-300">${code.trim()}</code></pre>`;
+  });
+
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code class="bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded text-xs font-mono">$1</code>');
+
+  // Headers
+  html = html.replace(/^#### (.+)$/gm, '<h4 class="text-sm font-semibold mt-4 mb-1 text-foreground">$1</h4>');
+  html = html.replace(/^### (.+)$/gm, '<h3 class="text-base font-semibold mt-4 mb-2 text-foreground">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 class="text-lg font-bold mt-5 mb-2 text-foreground">$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1 class="text-xl font-bold mt-5 mb-2 text-foreground">$1</h1>');
+
+  // Bold + Italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+
+  // Unordered lists
+  html = html.replace(/^- (.+)$/gm, '<li class="ml-4 list-disc text-sm text-muted-foreground">$1</li>');
+
+  // Ordered lists
+  html = html.replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal text-sm text-muted-foreground">$1</li>');
+
+  // Horizontal rules
+  html = html.replace(/^---$/gm, '<hr class="my-4 border-zinc-800" />');
+
+  // Paragraphs (double newlines)
+  html = html.replace(/\n\n/g, '</p><p class="text-sm text-muted-foreground mb-2">');
+
+  // Single newlines -> <br>
+  html = html.replace(/\n/g, "<br />");
+
+  return `<div class="space-y-1"><p class="text-sm text-muted-foreground mb-2">${html}</p></div>`;
+}
+
+// ─── SKILL.md Generator ──────────────────────────────────────────────────────
+
+function generateSkillMd(
+  name: string,
+  description: string,
+  instructions: string,
+  params: ParamDraft[]
+): string {
+  const lines: string[] = [];
+  lines.push("---");
+  lines.push(`name: "${name}"`);
+  lines.push(`description: "${description}"`);
+  if (params.length > 0) {
+    lines.push("parameters:");
+    for (const p of params) {
+      if (!p.key.trim()) continue;
+      lines.push(`  ${p.key}:`);
+      lines.push(`    type: "${p.type}"`);
+      lines.push(`    required: ${p.required}`);
+      lines.push(`    description: "${p.description}"`);
+    }
+  }
+  lines.push("---");
+  lines.push("");
+  if (instructions.trim()) {
+    lines.push(instructions.trim());
+  } else {
+    lines.push("# " + name);
+    lines.push("");
+    lines.push(description);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+// ─── SKILL.md Parser ─────────────────────────────────────────────────────────
+
+function parseSkillMd(skillMd: string): {
+  name: string;
+  description: string;
+  instructions: string;
+  params: ParamDraft[];
+} {
+  const result = {
+    name: "",
+    description: "",
+    instructions: "",
+    params: [] as ParamDraft[],
+  };
+
+  if (!skillMd) return result;
+
+  const fmMatch = skillMd.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!fmMatch) {
+    result.instructions = skillMd;
+    return result;
+  }
+
+  const frontmatter = fmMatch[1];
+  result.instructions = fmMatch[2].trim();
+
+  // Parse name
+  const nameMatch = frontmatter.match(/^name:\s*"?([^"\n]+)"?/m);
+  if (nameMatch) result.name = nameMatch[1].trim();
+
+  // Parse description
+  const descMatch = frontmatter.match(/^description:\s*"?([^"\n]+)"?/m);
+  if (descMatch) result.description = descMatch[1].trim();
+
+  // Parse parameters
+  const paramSection = frontmatter.match(/parameters:\n([\s\S]*?)(?=\n\w|$)/);
+  if (paramSection) {
+    const paramLines = paramSection[1].split("\n");
+    let currentParam: ParamDraft | null = null;
+    for (const line of paramLines) {
+      const keyMatch = line.match(/^\s{2}(\w+):\s*$/);
+      if (keyMatch) {
+        if (currentParam) result.params.push(currentParam);
+        currentParam = { key: keyMatch[1], type: "string", required: false, description: "" };
+        continue;
+      }
+      if (currentParam) {
+        const typeMatch = line.match(/^\s{4}type:\s*"?(\w+)"?/);
+        if (typeMatch) currentParam.type = typeMatch[1];
+        const reqMatch = line.match(/^\s{4}required:\s*(true|false)/);
+        if (reqMatch) currentParam.required = reqMatch[1] === "true";
+        const descMatch2 = line.match(/^\s{4}description:\s*"?([^"]*)"?/);
+        if (descMatch2) currentParam.description = descMatch2[1];
+      }
+    }
+    if (currentParam) result.params.push(currentParam);
+  }
+
+  return result;
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function formatDate(isoDate: string | null): string {
+  if (!isoDate) return "--";
+  return new Date(isoDate).toLocaleString("de-DE", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDuration(ms: number | null): string {
+  if (ms === null) return "--";
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+// ─── MCP Tool Selector ───────────────────────────────────────────────────────
+
+function McpToolSelector({
+  servers,
+  selected,
+  onChange,
+  loading,
+}: {
+  servers: McpServer[];
+  selected: string[];
+  onChange: (tools: string[]) => void;
+  loading: boolean;
+}) {
+  function toggle(tool: string) {
+    if (selected.includes(tool)) {
+      onChange(selected.filter((t) => t !== tool));
+    } else {
+      onChange([...selected, tool]);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
+
+  if (servers.length === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+        <Wrench className="size-4 shrink-0" />
+        <span>
+          Keine MCP-Server registriert. Fuege Werkzeuge in den Einstellungen
+          hinzu.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {servers.map((server) => (
+        <div key={server.id} className="rounded-lg border p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Wrench className="size-3.5 text-muted-foreground" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {server.name}
+            </p>
+            <Badge variant="secondary" className="text-xs">
+              {server.transport_type}
+            </Badge>
+          </div>
+          {server.tools.length === 0 ? (
+            <p className="text-xs text-muted-foreground pl-5">
+              Keine Tools definiert
+            </p>
+          ) : (
+            <div className="space-y-1.5 pl-5">
+              {server.tools.map((tool) => {
+                const toolKey = `mcp__${server.name}__${tool}`;
+                const isChecked = selected.includes(toolKey);
+                return (
+                  <label
+                    key={tool}
+                    className="flex items-center gap-2.5 cursor-pointer group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggle(toolKey)}
+                      className="size-3.5 rounded accent-primary cursor-pointer"
+                    />
+                    <span className="text-xs font-mono group-hover:text-foreground transition-colors text-muted-foreground">
+                      {tool}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Skill Card (List View) ─────────────────────────────────────────────────
+
+function SkillCard({
+  skill,
+  onSelect,
+  onToggle,
+}: {
+  skill: SkillItem;
+  onSelect: (id: string) => void;
+  onToggle: (id: string, active: boolean) => void;
+}) {
+  const [toggling, setToggling] = useState(false);
+  const hasSkillMd = Boolean(skill.skill_md);
+
+  async function handleToggle() {
+    setToggling(true);
+    try {
+      onToggle(skill.id, !skill.active);
+    } finally {
+      setToggling(false);
+    }
+  }
+
+  return (
+    <Card
+      className={`transition-all duration-200 cursor-pointer hover:border-primary/50 hover:shadow-sm ${
+        !skill.active ? "opacity-60" : ""
+      }`}
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div
+            className="flex items-center gap-3 flex-1 min-w-0"
+            onClick={() => onSelect(skill.id)}
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Zap className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-semibold truncate">
+                  {skill.name}
+                </CardTitle>
+                <Badge
+                  variant={skill.active ? "default" : "secondary"}
+                  className="text-[10px] px-1.5 py-0 h-5 shrink-0"
+                >
+                  {skill.active ? "Aktiv" : "Inaktiv"}
+                </Badge>
+                {hasSkillMd && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 h-5 shrink-0 gap-1 border-emerald-700/50 text-emerald-400"
+                  >
+                    <FileText className="size-2.5" />
+                    SKILL.md
+                  </Badge>
+                )}
+              </div>
+              <CardDescription className="text-xs mt-0.5 line-clamp-2">
+                {skill.description}
+              </CardDescription>
+            </div>
+          </div>
+          <Switch
+            checked={skill.active}
+            onCheckedChange={handleToggle}
+            disabled={toggling}
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0" onClick={() => onSelect(skill.id)}>
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Play className="size-3" />
+            {skill.execution_count}x ausgefuehrt
+          </span>
+          {skill.execution_count > 0 && (
+            <span className="flex items-center gap-1">
+              <CheckCircle2 className="size-3" />
+              {Math.round(skill.success_rate * 100)}% Erfolg
+            </span>
+          )}
+          {skill.last_execution && (
+            <span className="flex items-center gap-1">
+              <Clock className="size-3" />
+              {formatDate(skill.last_execution)}
+            </span>
+          )}
+          {skill.description && (
+            <span className="flex items-center gap-1 text-primary/60">
+              <Sparkles className="size-3" />
+              Auto-Trigger via Beschreibung
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Skill List Skeleton ────────────────────────────────────────────────────
+
+function SkillListSkeleton() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-lg" />
+              <div className="space-y-1.5 flex-1">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-56" />
+              </div>
+              <Skeleton className="h-5 w-9 rounded-full" />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex gap-4">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ─── Execution Log Entry ────────────────────────────────────────────────────
+
+function LogEntry({ log }: { log: SkillLogEntry }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div
+      className="rounded-lg border p-3 space-y-2 cursor-pointer hover:bg-muted/50 transition-colors"
+      onClick={() => setExpanded(!expanded)}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {log.status === "success" ? (
+            <CheckCircle2 className="size-4 text-green-500 shrink-0" />
+          ) : (
+            <XCircle className="size-4 text-red-500 shrink-0" />
+          )}
+          <span className="text-xs text-muted-foreground truncate">
+            {formatDate(log.created_at)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge
+            variant={log.status === "success" ? "default" : "destructive"}
+            className="text-xs"
+          >
+            {log.status}
+          </Badge>
+          {log.duration_ms !== null && (
+            <span className="text-xs text-muted-foreground">
+              {formatDuration(log.duration_ms)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="space-y-2 pt-1">
+          {log.input_summary && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">
+                Input
+              </p>
+              <p className="text-xs bg-muted rounded p-2 whitespace-pre-wrap break-words">
+                {log.input_summary}
+              </p>
+            </div>
+          )}
+          {log.output_summary && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">
+                Output
+              </p>
+              <p className="text-xs bg-muted rounded p-2 whitespace-pre-wrap break-words max-h-60 overflow-y-auto">
+                {log.output_summary}
+              </p>
+            </div>
+          )}
+          {log.error_message && (
+            <div>
+              <p className="text-xs font-medium text-red-500 mb-1">Fehler</p>
+              <p className="text-xs bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded p-2">
+                {log.error_message}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Parameter Editor ────────────────────────────────────────────────────────
+
+interface ParamDraft {
+  key: string;
+  type: string;
+  required: boolean;
+  description: string;
+}
+
+function ParameterEditor({
+  params,
+  onChange,
+}: {
+  params: ParamDraft[];
+  onChange: (params: ParamDraft[]) => void;
+}) {
+  function addParam() {
+    onChange([
+      ...params,
+      { key: "", type: "string", required: false, description: "" },
+    ]);
+  }
+
+  function removeParam(index: number) {
+    onChange(params.filter((_, i) => i !== index));
+  }
+
+  function updateParam(index: number, field: keyof ParamDraft, value: string | boolean) {
+    onChange(
+      params.map((p, i) => (i === index ? { ...p, [field]: value } : p))
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {params.map((param, index) => (
+        <div
+          key={index}
+          className="rounded-lg border p-3 space-y-2 relative"
+        >
+          <button
+            type="button"
+            onClick={() => removeParam(index)}
+            className="absolute top-2 right-2 text-muted-foreground hover:text-destructive transition-colors"
+          >
+            <XCircle className="size-4" />
+          </button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Key</Label>
+              <Input
+                placeholder="z.B. topic"
+                value={param.key}
+                onChange={(e) => updateParam(index, "key", e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Typ</Label>
+              <Select
+                value={param.type}
+                onValueChange={(v) => updateParam(index, "type", v)}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="string">string</SelectItem>
+                  <SelectItem value="number">number</SelectItem>
+                  <SelectItem value="boolean">boolean</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Beschreibung</Label>
+            <Input
+              placeholder="Wofuer wird dieser Parameter genutzt?"
+              value={param.description}
+              onChange={(e) =>
+                updateParam(index, "description", e.target.value)
+              }
+              className="h-8 text-xs"
+            />
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={param.required}
+              onChange={(e) => updateParam(index, "required", e.target.checked)}
+              className="size-3.5 rounded accent-primary"
+            />
+            <span className="text-xs text-muted-foreground">Pflichtfeld</span>
+          </label>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={addParam}
+        className="gap-1.5 w-full"
+      >
+        <Plus className="size-3.5" />
+        Parameter hinzufuegen
+      </Button>
+    </div>
+  );
+}
+
+// ─── Skill Create View (Manual with SKILL.md) ──────────────────────────────
+
+function SkillCreateView({
+  onBack,
+  onCreated,
+}: {
+  onBack: () => void;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [params, setParams] = useState<ParamDraft[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState("edit");
+
+  const generatedMd = useMemo(
+    () => generateSkillMd(name, description, instructions, params),
+    [name, description, instructions, params]
+  );
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !description.trim()) {
+      toast.error("Name und Beschreibung sind Pflichtfelder");
+      return;
+    }
+
+    const parameters: Record<string, SkillParameterDef> = {};
+    for (const p of params) {
+      if (!p.key.trim()) continue;
+      parameters[p.key.trim()] = {
+        type: p.type,
+        required: p.required,
+        description: p.description,
+      };
+    }
+
+    const payload: SkillCreateRequest = {
+      name: name.trim(),
+      description: description.trim(),
+      system_prompt: instructions.trim() || undefined,
+      parameters: Object.keys(parameters).length > 0 ? parameters : undefined,
+      skill_md: generatedMd,
+    };
+
+    setSubmitting(true);
+    try {
+      await settingsService.createSkill(payload);
+      toast.success("Skill erstellt");
+      onCreated();
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Fehler beim Erstellen des Skills";
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onBack}
+          className="shrink-0"
+        >
+          <ChevronLeft className="size-5" />
+        </Button>
+        <div>
+          <h2 className="text-xl font-bold tracking-tight">Skill erstellen</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Erstelle einen neuen Skill im Open Standard Format (SKILL.md)
+          </p>
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="w-full">
+          <TabsTrigger value="edit" className="gap-1.5">
+            <Settings2 className="size-3.5" />
+            Formular
+          </TabsTrigger>
+          <TabsTrigger value="preview" className="gap-1.5">
+            <Eye className="size-3.5" />
+            SKILL.md Vorschau
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="edit" className="space-y-4 mt-4">
+          {/* Grunddaten */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Grunddaten</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="skill-name">
+                  Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="skill-name"
+                  placeholder="z.B. daily_summary"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={submitting}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="skill-desc">
+                  Beschreibung <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  id="skill-desc"
+                  placeholder="Was macht dieser Skill? Claude nutzt diese Beschreibung um zu entscheiden, wann der Skill automatisch genutzt wird."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={submitting}
+                  rows={2}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Claude nutzt diese Beschreibung um zu entscheiden, wann der Skill automatisch ausgeloest wird.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="skill-instructions">
+                  Anweisungen (Markdown)
+                </Label>
+                <Textarea
+                  id="skill-instructions"
+                  placeholder="# Anweisungen&#10;&#10;Beschreibe hier die genauen Schritte die der Skill ausfuehren soll...&#10;&#10;## Regeln&#10;- Regel 1&#10;- Regel 2"
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
+                  disabled={submitting}
+                  rows={10}
+                  className="font-mono text-xs"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Parameter */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Parameter</CardTitle>
+              <CardDescription className="text-xs">
+                Definiere optionale Eingabe-Parameter fuer diesen Skill.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ParameterEditor params={params} onChange={setParams} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="preview" className="mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="size-4 text-emerald-400" />
+                <CardTitle className="text-sm">SKILL.md Vorschau</CardTitle>
+              </div>
+              <CardDescription className="text-xs">
+                So wird dein Skill als SKILL.md gespeichert (Anthropic Skills Open Standard)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <pre className="text-xs font-mono bg-zinc-900 border border-zinc-800 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap text-zinc-300 max-h-[500px] overflow-y-auto">
+                {generatedMd}
+              </pre>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Actions */}
+      <div className="flex items-center gap-3">
+        <Button
+          type="submit"
+          disabled={submitting || !name.trim() || !description.trim()}
+          className="gap-2"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Wird erstellt...
+            </>
+          ) : (
+            <>
+              <Plus className="size-4" />
+              Skill erstellen
+            </>
+          )}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onBack}
+          disabled={submitting}
+        >
+          Abbrechen
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Skill Detail View ──────────────────────────────────────────────────────
+
+function SkillDetailView({
+  skillId,
+  onBack,
+  onDeleted,
+}: {
+  skillId: string;
+  onBack: () => void;
+  onDeleted: () => void;
+}) {
+  const [skill, setSkill] = useState<SkillDetail | null>(null);
+  const [logs, setLogs] = useState<SkillLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [logsLoading, setLogsLoading] = useState(true);
+  const [executing, setExecuting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [executionResult, setExecutionResult] = useState<string | null>(null);
+  const [userInput, setUserInput] = useState("");
+  const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState("overview");
+
+  // SKILL.md editor state
+  const [skillMdDraft, setSkillMdDraft] = useState("");
+  const [savingMd, setSavingMd] = useState(false);
+
+  // Tool editing state
+  const [servers, setServers] = useState<McpServer[]>([]);
+  const [serversLoading, setServersLoading] = useState(true);
+  const [editingTools, setEditingTools] = useState(false);
+  const [draftTools, setDraftTools] = useState<string[]>([]);
+  const [savingTools, setSavingTools] = useState(false);
+
+  const fetchSkill = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await settingsService.getSkill(skillId);
+      setSkill(data.skill);
+      setDraftTools(data.skill.allowed_tools ?? []);
+      setSkillMdDraft(data.skill.skill_md ?? "");
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Fehler beim Laden des Skills.";
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [skillId]);
+
+  const fetchLogs = useCallback(async () => {
+    setLogsLoading(true);
+    try {
+      const data = await settingsService.getSkillLogs(skillId, 20);
+      setLogs(data.logs);
+    } catch {
+      // Silently fail for logs
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [skillId]);
+
+  useEffect(() => {
+    fetchSkill();
+    fetchLogs();
+  }, [fetchSkill, fetchLogs]);
+
+  useEffect(() => {
+    async function fetchServers() {
+      setServersLoading(true);
+      try {
+        const data = await settingsService.getWerkzeuge();
+        setServers(data.servers ?? []);
+      } catch {
+        // Non-critical
+      } finally {
+        setServersLoading(false);
+      }
+    }
+    fetchServers();
+  }, []);
+
+  async function handleExecute() {
+    if (!skill) return;
+    setExecuting(true);
+    setExecutionResult(null);
+
+    try {
+      const data = await settingsService.executeSkill(skillId, {
+        input: userInput,
+        parameters:
+          Object.keys(paramValues).length > 0 ? paramValues : undefined,
+      });
+      setExecutionResult(data.execution.output);
+      toast.success(
+        `Skill ausgefuehrt in ${formatDuration(data.execution.duration_ms)}`
+      );
+      fetchLogs();
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Fehler bei der Ausfuehrung.";
+      toast.error(msg);
+    } finally {
+      setExecuting(false);
+    }
+  }
+
+  async function handleToggleActive() {
+    if (!skill) return;
+    try {
+      await settingsService.updateSkill(skillId, { active: !skill.active });
+      setSkill({ ...skill, active: !skill.active });
+      toast.success(skill.active ? "Skill deaktiviert" : "Skill aktiviert");
+    } catch {
+      toast.error("Fehler beim Aktualisieren");
+    }
+  }
+
+  async function handleAutonomyChange(level: string) {
+    if (!skill) return;
+    const numLevel = parseInt(level, 10);
+    try {
+      await settingsService.updateSkill(skillId, {
+        autonomy_level: numLevel,
+      });
+      setSkill({ ...skill, autonomy_level: numLevel });
+      toast.success(`Autonomie-Level auf ${numLevel} gesetzt`);
+    } catch {
+      toast.error("Fehler beim Aktualisieren");
+    }
+  }
+
+  async function handleSaveTools() {
+    if (!skill) return;
+    setSavingTools(true);
+    try {
+      await settingsService.updateSkill(skillId, {
+        allowed_tools: draftTools,
+      });
+      setSkill({ ...skill, allowed_tools: draftTools });
+      setEditingTools(false);
+      toast.success("Werkzeuge aktualisiert");
+    } catch {
+      toast.error("Fehler beim Speichern der Werkzeuge");
+    } finally {
+      setSavingTools(false);
+    }
+  }
+
+  async function handleSaveSkillMd() {
+    if (!skill) return;
+    setSavingMd(true);
+    try {
+      await settingsService.updateSkill(skillId, { skill_md: skillMdDraft });
+      setSkill({ ...skill, skill_md: skillMdDraft });
+      toast.success("SKILL.md gespeichert");
+    } catch {
+      toast.error("Fehler beim Speichern");
+    } finally {
+      setSavingMd(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!skill) return;
+    if (
+      !window.confirm(
+        `Skill "${skill.name}" wirklich loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden.`
+      )
+    )
+      return;
+
+    setDeleting(true);
+    try {
+      await settingsService.deleteSkill(skillId);
+      toast.success("Skill geloescht");
+      onDeleted();
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Fehler beim Loeschen des Skills";
+      toast.error(msg);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  // Parse SKILL.md for overview rendering
+  const parsedMd = useMemo(() => {
+    if (!skill?.skill_md) return null;
+    return parseSkillMd(skill.skill_md);
+  }, [skill?.skill_md]);
+
+  const renderedInstructions = useMemo(() => {
+    if (!parsedMd?.instructions) return "";
+    return renderMarkdownToHtml(parsedMd.instructions);
+  }, [parsedMd?.instructions]);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-96" />
+        <div className="space-y-3 mt-6">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!skill) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Skill nicht gefunden.</p>
+        <Button variant="outline" onClick={onBack} className="mt-4">
+          Zurueck
+        </Button>
+      </div>
+    );
+  }
+
+  const parameters = skill.parameters || {};
+  const hasParameters = Object.keys(parameters).length > 0;
+  const allowedTools = skill.allowed_tools ?? [];
+  const hasSkillMd = Boolean(skill.skill_md);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onBack}
+          className="shrink-0 mt-0.5"
+        >
+          <ChevronLeft className="size-5" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-xl font-bold tracking-tight truncate">
+              {skill.name}
+            </h2>
+            <Badge variant={skill.active ? "default" : "secondary"}>
+              {skill.active ? "Aktiv" : "Inaktiv"}
+            </Badge>
+            {skill.is_custom && (
+              <Badge variant="outline" className="text-xs">
+                Custom
+              </Badge>
+            )}
+            {hasSkillMd && (
+              <Badge
+                variant="outline"
+                className="text-xs gap-1 border-emerald-700/50 text-emerald-400"
+              >
+                <FileText className="size-3" />
+                SKILL.md
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            {skill.description}
+          </p>
+        </div>
+        {skill.is_custom && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="gap-1.5 shrink-0 text-destructive hover:text-destructive"
+          >
+            {deleting ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="size-3.5" />
+            )}
+            Loeschen
+          </Button>
+        )}
+      </div>
+
+      {/* Tab Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="overview" className="gap-1.5">
+            <Eye className="size-3.5" />
+            Uebersicht
+          </TabsTrigger>
+          <TabsTrigger value="skillmd" className="gap-1.5">
+            <Code2 className="size-3.5" />
+            SKILL.md
+          </TabsTrigger>
+          <TabsTrigger value="logs" className="gap-1.5">
+            <ScrollText className="size-3.5" />
+            Verlauf
+          </TabsTrigger>
+          <TabsTrigger value="config" className="gap-1.5">
+            <Settings2 className="size-3.5" />
+            Konfiguration
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-4 mt-4">
+          {/* Rendered SKILL.md Instructions */}
+          {hasSkillMd && parsedMd?.instructions ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <FileText className="size-4 text-emerald-400" />
+                  Skill-Anweisungen
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div
+                  className="prose-custom max-h-[500px] overflow-y-auto"
+                  dangerouslySetInnerHTML={{ __html: renderedInstructions }}
+                />
+              </CardContent>
+            </Card>
+          ) : skill.system_prompt ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">System-Prompt</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs bg-muted rounded-lg p-3 font-mono whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+                  {skill.system_prompt}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {/* Execution Section */}
+          {hasParameters && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Parameter</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {Object.entries(parameters).map(
+                  ([key, param]: [string, SkillParameterDef]) => (
+                    <div key={key} className="space-y-1.5">
+                      <Label htmlFor={`param-${key}`} className="text-xs">
+                        {param.description}
+                        {param.required && (
+                          <span className="text-red-500 ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        id={`param-${key}`}
+                        placeholder={key}
+                        value={paramValues[key] || ""}
+                        onChange={(e) =>
+                          setParamValues((prev) => ({
+                            ...prev,
+                            [key]: e.target.value,
+                          }))
+                        }
+                        disabled={executing || !skill.active}
+                      />
+                    </div>
+                  )
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Skill ausfuehren</CardTitle>
+              <CardDescription className="text-xs">
+                Optionaler Freitext fuer zusaetzlichen Kontext.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                placeholder="Zusaetzlicher Kontext oder Anweisungen..."
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                rows={3}
+                disabled={executing || !skill.active}
+              />
+            </CardContent>
+          </Card>
+
+          <Button
+            onClick={handleExecute}
+            disabled={executing || !skill.active}
+            className="gap-2 w-full sm:w-auto"
+            size="lg"
+          >
+            {executing ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Wird ausgefuehrt...
+              </>
+            ) : (
+              <>
+                <Play className="size-4" />
+                Skill ausfuehren
+              </>
+            )}
+          </Button>
+
+          {executionResult && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <CheckCircle2 className="size-4 text-green-500" />
+                  Ergebnis
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="whitespace-pre-wrap text-sm bg-muted rounded-lg p-4 max-h-96 overflow-y-auto">
+                  {executionResult}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {!skill.active && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+              <Zap className="size-4 shrink-0" />
+              <p>
+                Dieser Skill ist deaktiviert. Aktiviere ihn in der
+                Konfiguration, um ihn auszufuehren.
+              </p>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* SKILL.md Editor Tab */}
+        <TabsContent value="skillmd" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="size-4 text-emerald-400" />
+                  <CardTitle className="text-sm">SKILL.md Editor</CardTitle>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleSaveSkillMd}
+                  disabled={savingMd}
+                  className="gap-1.5"
+                >
+                  {savingMd ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Save className="size-3.5" />
+                  )}
+                  Speichern
+                </Button>
+              </div>
+              <CardDescription className="text-xs">
+                Bearbeite den SKILL.md Inhalt direkt (Anthropic Skills Open Standard Format)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={skillMdDraft}
+                onChange={(e) => setSkillMdDraft(e.target.value)}
+                rows={20}
+                className="font-mono text-xs bg-zinc-900 border-zinc-800 text-zinc-300 resize-y"
+                placeholder={`---\nname: "${skill.name}"\ndescription: "${skill.description}"\n---\n\n# ${skill.name}\n\nSchreibe hier die Anweisungen fuer den Skill...`}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Live preview of the SKILL.md */}
+          {skillMdDraft && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Eye className="size-4" />
+                  Vorschau
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div
+                  className="prose-custom"
+                  dangerouslySetInnerHTML={{
+                    __html: renderMarkdownToHtml(
+                      parseSkillMd(skillMdDraft).instructions || skillMdDraft
+                    ),
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Logs Tab */}
+        <TabsContent value="logs" className="space-y-3 mt-4">
+          {logsLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="rounded-full bg-muted p-4 mx-auto w-fit mb-3">
+                <ScrollText className="size-8 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Noch keine Ausfuehrungen. Starte den Skill, um Logs zu sehen.
+              </p>
+            </div>
+          ) : (
+            logs.map((log) => <LogEntry key={log.id} log={log} />)
+          )}
+        </TabsContent>
+
+        {/* Config Tab */}
+        <TabsContent value="config" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Skill-Einstellungen</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Active Toggle */}
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Skill aktiv</p>
+                  <p className="text-xs text-muted-foreground">
+                    Aktiviere oder deaktiviere diesen Skill
+                  </p>
+                </div>
+                <Switch
+                  checked={skill.active}
+                  onCheckedChange={handleToggleActive}
+                />
+              </div>
+
+              {/* Autonomy Level */}
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Autonomie-Level</p>
+                  <p className="text-xs text-muted-foreground">
+                    Wie selbststaendig darf PAI-X diesen Skill nutzen?
+                  </p>
+                </div>
+                <Select
+                  value={String(skill.autonomy_level)}
+                  onValueChange={handleAutonomyChange}
+                >
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Level 1</SelectItem>
+                    <SelectItem value="2">Level 2</SelectItem>
+                    <SelectItem value="3">Level 3</SelectItem>
+                    <SelectItem value="4">Level 4</SelectItem>
+                    <SelectItem value="5">Level 5</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Allowed Tools */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm">Erlaubte Werkzeuge</CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    MCP-Tools die dieser Skill verwenden darf
+                  </CardDescription>
+                </div>
+                {!editingTools ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDraftTools(allowedTools);
+                      setEditingTools(true);
+                    }}
+                  >
+                    Bearbeiten
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleSaveTools}
+                      disabled={savingTools}
+                      className="gap-1.5"
+                    >
+                      {savingTools ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : null}
+                      Speichern
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setDraftTools(allowedTools);
+                        setEditingTools(false);
+                      }}
+                      disabled={savingTools}
+                    >
+                      Abbrechen
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {editingTools ? (
+                <McpToolSelector
+                  servers={servers}
+                  selected={draftTools}
+                  onChange={setDraftTools}
+                  loading={serversLoading}
+                />
+              ) : allowedTools.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Keine Werkzeuge ausgewaehlt — Skill hat Zugriff auf alle
+                  Standard-Tools.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {allowedTools.map((t) => (
+                    <Badge
+                      key={t}
+                      variant="secondary"
+                      className="text-xs font-mono"
+                    >
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* System Prompt Preview */}
+          {skill.system_prompt && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">System-Prompt</CardTitle>
+                <CardDescription className="text-xs">
+                  Der Prompt, der an Claude gesendet wird.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xs bg-muted rounded-lg p-3 font-mono whitespace-pre-wrap">
+                  {skill.system_prompt}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Parameter Definitions */}
+          {hasParameters && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Parameter-Definitionen</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {Object.entries(parameters).map(
+                    ([key, param]: [string, SkillParameterDef]) => (
+                      <div
+                        key={key}
+                        className="flex items-center justify-between rounded border p-2.5"
+                      >
+                        <div>
+                          <p className="text-xs font-medium font-mono">{key}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {param.description}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={param.required ? "default" : "secondary"}
+                          className="text-xs"
+                        >
+                          {param.required ? "Pflicht" : "Optional"}
+                        </Badge>
+                      </div>
+                    )
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ─── AI Skill Chat Modal ────────────────────────────────────────────────────
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+function SkillChatModal({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: () => void;
+}) {
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [apiMessages, setApiMessages] = useState<SkillGenerateMessage[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [generatedSkill, setGeneratedSkill] = useState<SkillCreateRequest | null>(null);
+  const [creating, setCreating] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const initializedRef = useRef(false);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, loading]);
+
+  // Send initial message when modal opens
+  useEffect(() => {
+    if (open && !initializedRef.current) {
+      initializedRef.current = true;
+      sendToAgent([]);
+    }
+    if (!open) {
+      // Reset state when modal closes
+      initializedRef.current = false;
+      setChatMessages([]);
+      setApiMessages([]);
+      setInputValue("");
+      setGeneratedSkill(null);
+      setCreating(false);
+      setLoading(false);
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Generate SKILL.md preview from generated skill
+  const skillMdPreview = useMemo(() => {
+    if (!generatedSkill) return "";
+    const params: ParamDraft[] = generatedSkill.parameters
+      ? Object.entries(generatedSkill.parameters).map(([key, param]) => ({
+          key,
+          type: param.type,
+          required: param.required,
+          description: param.description,
+        }))
+      : [];
+    return generateSkillMd(
+      generatedSkill.name,
+      generatedSkill.description,
+      generatedSkill.system_prompt || "",
+      params
+    );
+  }, [generatedSkill]);
+
+  async function sendToAgent(messages: SkillGenerateMessage[]) {
+    setLoading(true);
+    try {
+      const response: SkillGenerateResponse = await settingsService.generateSkill(messages);
+
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: response.message },
+      ]);
+      setApiMessages(response.messages);
+
+      if (response.type === "skill_ready" && response.skill) {
+        setGeneratedSkill(response.skill);
+      }
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Fehler bei der KI-Kommunikation";
+      toast.error(msg);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Entschuldigung, es gab einen Fehler. Bitte versuche es erneut.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+      // Focus input after response
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }
+
+  function handleSend() {
+    const text = inputValue.trim();
+    if (!text || loading) return;
+
+    setChatMessages((prev) => [...prev, { role: "user", content: text }]);
+    setInputValue("");
+    setGeneratedSkill(null);
+
+    const updatedMessages: SkillGenerateMessage[] = [
+      ...apiMessages,
+      { role: "user", content: text },
+    ];
+    sendToAgent(updatedMessages);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
+
+  async function handleCreate() {
+    if (!generatedSkill) return;
+    setCreating(true);
+    try {
+      await settingsService.createSkill({
+        ...generatedSkill,
+        skill_md: skillMdPreview,
+      });
+      toast.success(`Skill "${generatedSkill.name}" erstellt`);
+      onOpenChange(false);
+      onCreated();
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Fehler beim Erstellen des Skills";
+      toast.error(msg);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  function handleRetry() {
+    setGeneratedSkill(null);
+    setChatMessages((prev) => [
+      ...prev,
+      { role: "user", content: "Bitte passe den Skill an. Ich moechte noch etwas aendern." },
+    ]);
+    const updatedMessages: SkillGenerateMessage[] = [
+      ...apiMessages,
+      { role: "user", content: "Bitte passe den Skill an. Ich moechte noch etwas aendern." },
+    ];
+    sendToAgent(updatedMessages);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl h-[80vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 py-4 border-b shrink-0">
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="size-5 text-primary" />
+            Skill mit KI erstellen
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Chat Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {chatMessages.map((msg, i) => (
+            <div
+              key={i}
+              className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              {msg.role === "assistant" && (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary mt-0.5">
+                  <Bot className="size-4" />
+                </div>
+              )}
+              <div
+                className={`rounded-2xl px-4 py-2.5 max-w-[80%] text-sm whitespace-pre-wrap ${
+                  msg.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground"
+                }`}
+              >
+                {msg.content}
+              </div>
+              {msg.role === "user" && (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-zinc-300 mt-0.5">
+                  <User className="size-4" />
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Typing indicator */}
+          {loading && (
+            <div className="flex gap-3 justify-start">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary mt-0.5">
+                <Bot className="size-4" />
+              </div>
+              <div className="rounded-2xl px-4 py-2.5 bg-muted text-muted-foreground text-sm">
+                <span className="flex items-center gap-1">
+                  <span className="animate-pulse">.</span>
+                  <span className="animate-pulse" style={{ animationDelay: "0.2s" }}>.</span>
+                  <span className="animate-pulse" style={{ animationDelay: "0.4s" }}>.</span>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Skill Preview Card — now shows SKILL.md */}
+          {generatedSkill && (
+            <div className="rounded-xl border border-emerald-700/30 bg-emerald-950/10 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <FileText className="size-4 text-emerald-400" />
+                <p className="text-sm font-semibold">Generiertes SKILL.md</p>
+              </div>
+
+              {/* SKILL.md Preview */}
+              <pre className="text-xs font-mono bg-zinc-900 border border-zinc-800 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap text-zinc-300 max-h-48 overflow-y-auto">
+                {skillMdPreview}
+              </pre>
+
+              <Separator />
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCreate}
+                  disabled={creating}
+                  className="gap-2"
+                  size="sm"
+                >
+                  {creating ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      Wird erstellt...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="size-3.5" />
+                      Erstellen
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleRetry}
+                  disabled={creating || loading}
+                  className="gap-2"
+                  size="sm"
+                >
+                  <RotateCcw className="size-3.5" />
+                  Anpassen
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input Area */}
+        <div className="border-t px-6 py-4 shrink-0">
+          <div className="flex gap-2">
+            <Input
+              ref={inputRef}
+              placeholder="Beschreibe deinen Skill..."
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={loading || creating}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleSend}
+              disabled={!inputValue.trim() || loading || creating}
+              size="icon"
+            >
+              <Send className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Skills Page ────────────────────────────────────────────────────────────
+
+type PageMode = "list" | "detail" | "create";
+
+export default function SkillsPage() {
+  const [skills, setSkills] = useState<SkillItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<PageMode>("list");
+  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+
+  const fetchSkills = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await settingsService.getSkills();
+      setSkills(data.skills ?? []);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Fehler beim Laden der Skills.";
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSkills();
+  }, [fetchSkills]);
+
+  async function handleToggle(skillId: string, active: boolean) {
+    setSkills((prev) =>
+      prev.map((s) => (s.id === skillId ? { ...s, active } : s))
+    );
+    try {
+      await settingsService.updateSkill(skillId, { active });
+      toast.success(active ? "Skill aktiviert" : "Skill deaktiviert");
+    } catch {
+      setSkills((prev) =>
+        prev.map((s) => (s.id === skillId ? { ...s, active: !active } : s))
+      );
+      toast.error("Fehler beim Aktualisieren");
+    }
+  }
+
+  function handleSelectSkill(id: string) {
+    setSelectedSkillId(id);
+    setMode("detail");
+  }
+
+  function handleBackToList() {
+    setSelectedSkillId(null);
+    setMode("list");
+    fetchSkills();
+  }
+
+  // Detail view
+  if (mode === "detail" && selectedSkillId) {
+    return (
+      <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full">
+        <SkillDetailView
+          skillId={selectedSkillId}
+          onBack={handleBackToList}
+          onDeleted={handleBackToList}
+        />
+      </div>
+    );
+  }
+
+  // Create view
+  if (mode === "create") {
+    return (
+      <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full">
+        <SkillCreateView
+          onBack={() => setMode("list")}
+          onCreated={() => {
+            setMode("list");
+            fetchSkills();
+          }}
+        />
+      </div>
+    );
+  }
+
+  // List view
+  return (
+    <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full">
+      {/* Page Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Skills</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Verwalte deine PAI-X Skills im Anthropic Open Standard Format
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            variant="outline"
+            onClick={() => setAiChatOpen(true)}
+            className="gap-2"
+          >
+            <Sparkles className="size-4" />
+            Mit KI erstellen
+          </Button>
+          <Button
+            onClick={() => setMode("create")}
+            className="gap-2"
+          >
+            <Plus className="size-4" />
+            Skill erstellen
+          </Button>
+        </div>
+      </div>
+
+      {/* AI Chat Modal */}
+      <SkillChatModal
+        open={aiChatOpen}
+        onOpenChange={setAiChatOpen}
+        onCreated={() => {
+          fetchSkills();
+        }}
+      />
+
+      {/* Skills List */}
+      {loading ? (
+        <SkillListSkeleton />
+      ) : skills.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+          <div className="rounded-full bg-muted p-6">
+            <Zap className="size-10 text-muted-foreground" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-lg font-semibold">Keine Skills verfuegbar</p>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Erstelle deinen ersten Custom Skill oder warte, bis PAI-X die
+              Standard-Skills eingerichtet hat.
+            </p>
+          </div>
+          <Button onClick={() => setMode("create")} className="gap-2">
+            <Plus className="size-4" />
+            Skill erstellen
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {skills.map((skill) => (
+            <SkillCard
+              key={skill.id}
+              skill={skill}
+              onSelect={handleSelectSkill}
+              onToggle={handleToggle}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,264 @@
+services:
+  # ──────────────────────────────────────────────
+  # Frontend: Next.js 15
+  # ──────────────────────────────────────────────
+  web:
+    build:
+      context: ../web
+      dockerfile: ../infra/dockerfiles/Dockerfile.web
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000/api/v1/chat/stream
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - paix-network
+
+  # ──────────────────────────────────────────────
+  # Backend: FastAPI
+  # ──────────────────────────────────────────────
+  api:
+    build:
+      context: ../api
+      dockerfile: ../infra/dockerfiles/Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - DATABASE_URL=postgresql+asyncpg://paix:${POSTGRES_PASSWORD}@postgres:5432/paix
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - FALKORDB_HOST=falkordb
+      - FALKORDB_PORT=6379
+      - GRAPHITI_URL=http://graphiti:8001
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      falkordb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - paix-network
+
+  # ──────────────────────────────────────────────
+  # PostgreSQL 16
+  # ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=paix
+      - POSTGRES_USER=paix
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paix -d paix"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - paix-network
+
+  # ──────────────────────────────────────────────
+  # Redis 7.x
+  # ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - paix-network
+
+  # ──────────────────────────────────────────────
+  # FalkorDB (Graph-Datenbank fuer Graphiti)
+  # ──────────────────────────────────────────────
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "6380:6379"
+    volumes:
+      - falkordb_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - paix-network
+
+  # ──────────────────────────────────────────────
+  # Graphiti API Service
+  # ──────────────────────────────────────────────
+  graphiti:
+    build:
+      context: ../api
+      dockerfile: ../infra/dockerfiles/Dockerfile.graphiti
+    ports:
+      - "8001:8001"
+    environment:
+      - FALKORDB_HOST=falkordb
+      - FALKORDB_PORT=6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - paix-network
+
+  # ──────────────────────────────────────────────
+  # n8n (Workflow Automation)
+  # ──────────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - WEBHOOK_URL=http://localhost:5678
+      - GENERIC_TIMEZONE=Europe/Berlin
+      - TZ=Europe/Berlin
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - paix-network
+
+  # ──────────────────────────────────────────────
+  # Nginx (Reverse Proxy)
+  # ──────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - paix-network
+
+  # ──────────────────────────────────────────────
+  # Celery Worker (Background Tasks)
+  # ──────────────────────────────────────────────
+  celery_worker:
+    build:
+      context: ../api
+      dockerfile: ../infra/dockerfiles/Dockerfile.api
+    command: celery -A celery_app worker --loglevel=info --concurrency=4 -Q default,proactive,memory
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://paix:${POSTGRES_PASSWORD}@postgres:5432/paix
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - FALKORDB_HOST=falkordb
+      - FALKORDB_PORT=6379
+      - GRAPHITI_URL=http://graphiti:8001
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - paix-network
+
+  # ──────────────────────────────────────────────
+  # Celery Beat (Periodic Task Scheduler)
+  # ──────────────────────────────────────────────
+  celery_beat:
+    build:
+      context: ../api
+      dockerfile: ../infra/dockerfiles/Dockerfile.api
+    command: celery -A celery_app beat --loglevel=info
+    environment:
+      - ENVIRONMENT=production
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - paix-network
+
+# ──────────────────────────────────────────────
+# Volumes
+# ──────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  falkordb_data:
+    driver: local
+  n8n_data:
+    driver: local
+
+# ──────────────────────────────────────────────
+# Networks
+# ──────────────────────────────────────────────
+networks:
+  paix-network:
+    driver: bridge
