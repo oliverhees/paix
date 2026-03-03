@@ -1052,7 +1052,8 @@ async def list_runs(
     runs, total = await routine_service.list_runs(
         db,
         routine.id,
-        status_filter=status_filter,
+        user.id,
+        status=status_filter,
         limit=limit,
         offset=offset,
     )
