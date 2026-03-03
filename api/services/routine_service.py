@@ -62,6 +62,9 @@ class RoutineService:
                 db.add(RoutineSkill(routine_id=routine.id, skill_id=sid))
             await db.flush()
 
+        # Eagerly load skills relationship to avoid MissingGreenlet in response serialization
+        await db.refresh(routine, ["skills"])
+
         return routine
 
     async def get_routine(self, db, routine_id, user_id) -> Routine | None:

@@ -1,13 +1,13 @@
 """Add persona customization fields to users.
 
-Revision ID: 006
-Revises: 005
+Revision ID: 006_persona
+Revises: 005_routines
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "006"
-down_revision = "005"
+revision = "006_persona"
+down_revision = "005_routines"
 branch_labels = None
 depends_on = None
 

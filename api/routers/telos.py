@@ -58,6 +58,9 @@ async def get_all_dimensions(
     for dim in VALID_DIMENSIONS:
         try:
             data = await graphiti_service.get_telos_dimension(user_id, dim)
+            entries_data = data.get("entries", [])
+            if not entries_data:
+                raise ValueError("No entries from Graphiti")
             entries = [
                 TelosEntryResponse(
                     id=e.get("id", ""),
@@ -67,7 +70,7 @@ async def get_all_dimensions(
                     created_at=e.get("created_at"),
                     updated_at=e.get("updated_at"),
                 )
-                for e in data.get("entries", [])
+                for e in entries_data
             ]
             dimensions[dim] = entries
 
@@ -116,6 +119,9 @@ async def get_dimension(
 
     try:
         data = await graphiti_service.get_telos_dimension(user_id, dimension)
+        entries_data = data.get("entries", [])
+        if not entries_data:
+            raise ValueError("No entries from Graphiti, falling back to PostgreSQL")
         entries = [
             TelosEntryResponse(
                 id=e.get("id", ""),
@@ -125,7 +131,7 @@ async def get_dimension(
                 created_at=e.get("created_at"),
                 updated_at=e.get("updated_at"),
             )
-            for e in data.get("entries", [])
+            for e in entries_data
         ]
         return TelosDimensionResponse(
             dimension=dimension,

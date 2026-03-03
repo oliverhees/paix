@@ -13,7 +13,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 # revision identifiers
 revision: str = "007_agent_state"
-down_revision: Union[str, None] = "006"
+down_revision: Union[str, None] = "006_persona"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -415,7 +415,7 @@ async def create_routine(
     from services.routine_scheduler_service import routine_scheduler
     from services.routine_service import routine_service
 
-    routine = await routine_service.create_routine(db, user.id, body.model_dump())
+    routine = await routine_service.create_routine(db, user.id, **body.model_dump())
     routine_scheduler.schedule_routine(routine)
     return {"routine": _routine_to_response(routine)}
 
