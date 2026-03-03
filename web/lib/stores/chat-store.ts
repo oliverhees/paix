@@ -288,46 +288,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   loadSessionMessages: async (sessionId: string) => {
-    const state = get();
+    // Load directly from API — no need to wait for backendAvailable
+    set({ isLoading: true });
+    try {
+      const response = await chatService.getSessionMessages(sessionId);
+      const messages = response.messages.map(apiMessageToLocal);
 
-    // Try backend first
-    if (state.backendAvailable) {
-      set({ isLoading: true });
-      try {
-        const response = await chatService.getSessionMessages(sessionId);
-        const messages = response.messages.map(apiMessageToLocal);
-
-        // Extract artifacts from message responses
-        const loadedArtifacts: Artifact[] = [];
-        for (const msg of response.messages) {
-          if (msg.artifacts && msg.artifacts.length > 0) {
-            for (const a of msg.artifacts) {
-              loadedArtifacts.push({
-                id: a.id,
-                title: a.title,
-                type: a.artifact_type,
-                language: a.language ?? undefined,
-                content: a.content,
-                messageId: msg.id,
-              });
-            }
+      // Extract artifacts from message responses
+      const loadedArtifacts: Artifact[] = [];
+      for (const msg of response.messages) {
+        if (msg.artifacts && msg.artifacts.length > 0) {
+          for (const a of msg.artifacts) {
+            loadedArtifacts.push({
+              id: a.id,
+              title: a.title,
+              type: a.artifact_type,
+              language: a.language ?? undefined,
+              content: a.content,
+              messageId: msg.id,
+            });
           }
         }
-
-        set({
-          messages,
-          currentSessionId: sessionId,
-          isLoading: false,
-          artifacts: loadedArtifacts,
-          // If there are artifacts, set the last one as active so the panel shows
-          activeArtifact: loadedArtifacts.length > 0
-            ? loadedArtifacts[loadedArtifacts.length - 1]
-            : null,
-        });
-        return;
-      } catch {
-        // Fall through to mock
       }
+
+      set({
+        messages,
+        currentSessionId: sessionId,
+        backendAvailable: true,
+        isLoading: false,
+        artifacts: loadedArtifacts,
+        activeArtifact: loadedArtifacts.length > 0
+          ? loadedArtifacts[loadedArtifacts.length - 1]
+          : null,
+      });
+      return;
+    } catch {
+      // Fall through to mock
     }
 
     // Fallback: load from mock data

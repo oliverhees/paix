@@ -24,6 +24,7 @@ import {
   Globe,
   Plus,
   ExternalLink,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -873,6 +874,11 @@ function RunRow({
   const [retrying, setRetrying] = useState(false);
 
   async function handleExpand() {
+    // Completed runs with a chat session → open in chat
+    if (run.status === "completed" && run.chat_session_id) {
+      router.push(`/chat/${run.chat_session_id}`);
+      return;
+    }
     if (expanded) {
       setExpanded(false);
       return;
@@ -1050,17 +1056,17 @@ function RunRow({
           ) : null}
 
           <div className="flex items-center gap-2 pt-1 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1.5"
-              onClick={() =>
-                router.push(`/routines/${routineId}/runs/${run.id}`)
-              }
-            >
-              <ExternalLink className="size-3" />
-              Details anzeigen
-            </Button>
+            {run.chat_session_id && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1.5"
+                onClick={() => router.push(`/chat/${run.chat_session_id}`)}
+              >
+                <MessageSquare className="size-3" />
+                Im Chat öffnen
+              </Button>
+            )}
 
             {canCancel && (
               <Button
@@ -1541,11 +1547,15 @@ export default function RoutineDetailPage() {
     setRunElapsed(0);
     const timer = setInterval(() => setRunElapsed((s) => s + 1), 1000);
     try {
-      await api.post(`/routines/${routineId}/run`, {});
-      toast.success("Ausfuhrung abgeschlossen.");
-      setRunsOffset(0);
-      fetchRuns(0, false);
-      fetchRoutine();
+      const result = await api.post<{ id: string; status: string; chat_session_id?: string | null; result_summary?: string | null }>(`/routines/${routineId}/run`, {});
+      if (result.chat_session_id) {
+        router.push(`/chat/${result.chat_session_id}`);
+      } else {
+        toast.success("Ausfuhrung abgeschlossen.");
+        setRunsOffset(0);
+        fetchRuns(0, false);
+        fetchRoutine();
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Fehler beim Starten.";
       toast.error(msg);
