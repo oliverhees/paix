@@ -48,6 +48,7 @@ import {
   Bot,
   Brain,
   Clock,
+  Zap,
 } from "lucide-react";
 import {
   settingsService,
@@ -653,6 +654,7 @@ function APIKeysSection() {
     }))
   );
   const [anthropicMode, setAnthropicMode] = useState<"api_key" | "subscription">("api_key");
+  const [connectingClaude, setConnectingClaude] = useState(false);
 
   useEffect(() => {
     const fetchKeys = async () => {
@@ -785,6 +787,44 @@ function APIKeysSection() {
     }
   }, [providers]);
 
+  async function openClaudeOAuth() {
+    setConnectingClaude(true);
+    try {
+      const data = await api.get<{ auth_url: string }>("/auth/claude/start");
+      const popup = window.open(data.auth_url, "claude_oauth", "width=600,height=700,scrollbars=yes");
+
+      // Listen for completion message from popup
+      const handler = (event: MessageEvent) => {
+        if (event.data?.type === "claude_oauth") {
+          window.removeEventListener("message", handler);
+          if (event.data.success === "true") {
+            // Refresh the key hints
+            api.get<ApiKeysResponse>("/settings/api-keys").then((fresh) => {
+              setProviders((prev) =>
+                prev.map((p) => {
+                  const found = fresh.keys.find((k: {provider: string; key_hint: string}) => k.provider === p.provider);
+                  return { ...p, keyHint: found ? found.key_hint : null };
+                })
+              );
+              setAnthropicMode("subscription");
+            });
+          }
+          setConnectingClaude(false);
+          popup?.close();
+        }
+      };
+      window.addEventListener("message", handler);
+
+      // Fallback: stop loading after 5 minutes
+      setTimeout(() => {
+        window.removeEventListener("message", handler);
+        setConnectingClaude(false);
+      }, 300000);
+    } catch (err) {
+      setConnectingClaude(false);
+    }
+  }
+
   if (loading) {
     return (
       <Card>
@@ -867,6 +907,19 @@ function APIKeysSection() {
                 <p className="text-muted-foreground">Token generieren mit Claude Code CLI:</p>
                 <code className="block bg-background rounded px-2 py-1 font-mono text-xs">claude setup-token</code>
                 <p className="text-muted-foreground">Token beginnt mit <code className="font-mono">sk-ant-oat01-</code></p>
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={openClaudeOAuth}
+                  disabled={connectingClaude}
+                  className="w-full gap-2 mt-2"
+                >
+                  {connectingClaude ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Verbinde...</>
+                  ) : (
+                    <><Zap className="h-3.5 w-3.5" /> Mit Anthropic verbinden</>
+                  )}
+                </Button>
               </div>
             )}
 

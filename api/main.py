@@ -10,6 +10,7 @@ from models.database import init_db, close_db
 from routers import health, chat, calendar, telos, memory, models
 from routers import auth, skills, notifications, internal, integrations, reminders, werkzeuge, routines, telegram
 from routers import agent_state
+from routers import claude_oauth
 from services.graphiti_service import graphiti_service
 from services.llm_service import llm_service
 from services.scheduler_service import start_scheduler, stop_scheduler, scheduler
@@ -81,6 +82,9 @@ app.include_router(agent_state.router, prefix="/api/v1", tags=["agent-state"])
 
 # Telegram webhook (public — Telegram verifies via bot token)
 app.include_router(telegram.router, prefix="/api/v1", tags=["telegram"])
+
+# Claude OAuth (PKCE flow for subscription token acquisition)
+app.include_router(claude_oauth.router, prefix="/api/v1", tags=["claude-oauth"])
 
 # Internal routes (protected by X-Internal-Key header)
 app.include_router(internal.router, prefix="/api/v1", tags=["internal"])
