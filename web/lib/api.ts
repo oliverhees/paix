@@ -18,7 +18,9 @@ import type {
 } from "@/lib/types/auth";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+  typeof window !== "undefined"
+    ? "/api/v1" // Client-side: use Next.js rewrite proxy (avoids CORS)
+    : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1");
 
 interface ApiOptions extends RequestInit {
   /** Skip JSON parsing (for streaming responses). */
