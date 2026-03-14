@@ -22,6 +22,7 @@ from services.skill_service import skill_service
 from services.graphiti_service import graphiti_service
 from services.docker_executor_service import docker_executor
 from services.channel_adapters.base import ChannelAdapter
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
@@ -127,18 +128,36 @@ class ChatEngine:
             "Nutze es fuer: ganze Dateien, laengere Dokumente, HTML-Previews, Diagramme."
         )
 
-        # TELOS context
+        # TELOS context from PostgreSQL
         telos_text = ""
-        try:
-            telos_data = await graphiti_service.get_telos_dimension(user_id, "goals")
-            entries = telos_data.get("entries", [])
-            if entries:
-                goals = [e.get("content", "") for e in entries[:5]]
-                telos_text = "\n\nAktuelle Ziele des Nutzers:\n" + "\n".join(
-                    f"- {g}" for g in goals if g
-                )
-        except Exception:
-            pass
+        if db is not None:
+            try:
+                from models.telos_snapshot import TelosSnapshot
+                for dim_name in ["goals", "mission", "challenges"]:
+                    result = await db.execute(
+                        select(TelosSnapshot)
+                        .where(
+                            TelosSnapshot.user_id == user.id,
+                            TelosSnapshot.dimension == dim_name,
+                        )
+                        .order_by(TelosSnapshot.created_at.desc())
+                        .limit(1)
+                    )
+                    snapshot = result.scalar_one_or_none()
+                    if snapshot and snapshot.content_json:
+                        entries = snapshot.content_json.get("entries", [])
+                        active = [
+                            e.get("content", "")
+                            for e in entries
+                            if e.get("status") != "archived" and e.get("content")
+                        ]
+                        if active:
+                            label = {"goals": "Ziele", "mission": "Mission", "challenges": "Herausforderungen"}.get(dim_name, dim_name)
+                            telos_text += f"\n\n{label} des Nutzers:\n" + "\n".join(
+                                f"- {g}" for g in active[:5]
+                            )
+            except Exception:
+                pass
 
         # Memory context from semantic search
         memory_text = ""
@@ -227,12 +246,177 @@ class ChatEngine:
         db: AsyncSession,
         user_id: uuid.UUID,
     ) -> list[dict]:
-        """Load active skills as tools, plus artifact and run_code tools."""
+        """Load active skills as tools, plus artifact, run_code, and MCP tools."""
         tools = await skill_service.get_tools_for_user(db, user_id)
         tools.append(ARTIFACT_TOOL)
         if app_settings.docker_sandbox_enabled:
             tools.append(RUN_CODE_TOOL)
+
+        # Load MCP server tools
+        mcp_tools = await self._load_mcp_tools(db, user_id)
+        tools.extend(mcp_tools)
+
+        # Load API werkzeug tools
+        api_tools = await self._load_api_werkzeug_tools(db, user_id)
+        tools.extend(api_tools)
+
+        # Storage tools (always available if configured)
+        tools.extend(self._get_storage_tools())
+
         return tools
+
+    async def _load_mcp_tools(
+        self,
+        db: AsyncSession,
+        user_id: uuid.UUID,
+    ) -> list[dict]:
+        """Load tools from active MCP servers in Anthropic Tool Use format."""
+        from models.mcp_server import McpServer
+
+        result = await db.execute(
+            select(McpServer).where(
+                McpServer.user_id == user_id,
+                McpServer.active == True,  # noqa: E712
+            )
+        )
+        servers = result.scalars().all()
+
+        tools: list[dict] = []
+        for server in servers:
+            for tool in (server.tools or []):
+                if isinstance(tool, dict) and tool.get("name"):
+                    # Full tool schema from discovery
+                    tools.append({
+                        "name": f"mcp__{server.name}__{tool['name']}",
+                        "description": tool.get("description", ""),
+                        "input_schema": tool.get("input_schema", {
+                            "type": "object",
+                            "properties": {},
+                        }),
+                    })
+                elif isinstance(tool, str) and tool:
+                    # Legacy: tool name only (no schema)
+                    tools.append({
+                        "name": f"mcp__{server.name}__{tool}",
+                        "description": f"MCP tool '{tool}' from {server.name}",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {},
+                        },
+                    })
+
+        logger.info("Loaded %d MCP tools for user %s", len(tools), user_id)
+        return tools
+
+    async def _load_api_werkzeug_tools(
+        self,
+        db: AsyncSession,
+        user_id: uuid.UUID,
+    ) -> list[dict]:
+        """Load tools from active API werkzeuge in Anthropic Tool Use format."""
+        from models.api_werkzeug import ApiWerkzeug
+
+        result = await db.execute(
+            select(ApiWerkzeug).where(
+                ApiWerkzeug.user_id == user_id,
+                ApiWerkzeug.active == True,  # noqa: E712
+            )
+        )
+        werkzeuge = result.scalars().all()
+
+        tools: list[dict] = []
+        for w in werkzeuge:
+            for ep in (w.endpoints or []):
+                if not isinstance(ep, dict) or not ep.get("name"):
+                    continue
+                tools.append({
+                    "name": f"api__{w.name}__{ep['name']}",
+                    "description": ep.get("description", f"API call to {w.name}"),
+                    "input_schema": ep.get("parameters", {
+                        "type": "object",
+                        "properties": {},
+                    }),
+                })
+
+        if tools:
+            logger.info("Loaded %d API werkzeug tools for user %s", len(tools), user_id)
+        return tools
+
+    # ──────────────────────────────────────────────
+    # Storage tools
+    # ──────────────────────────────────────────────
+
+    def _get_storage_tools(self) -> list[dict]:
+        """Return storage tools if S3 is configured."""
+        from services.storage_service import storage_service
+        if not storage_service.configured:
+            return []
+        return [
+            {
+                "name": "storage_list",
+                "description": "List files and folders in the user's object storage. Returns folder and file names with sizes.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Folder path to list (empty string for root)",
+                        },
+                    },
+                    "required": [],
+                },
+            },
+            {
+                "name": "storage_read",
+                "description": "Read a text file from object storage. Returns the file content as text (max 50KB).",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Path to the file to read",
+                        },
+                    },
+                    "required": ["path"],
+                },
+            },
+            {
+                "name": "storage_write",
+                "description": "Write/save a text file to object storage.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Path where the file should be saved",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Text content to write",
+                        },
+                        "content_type": {
+                            "type": "string",
+                            "description": "MIME type (default: text/plain)",
+                        },
+                    },
+                    "required": ["path", "content"],
+                },
+            },
+            {
+                "name": "storage_delete",
+                "description": "Delete a file or folder from object storage.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Path to delete",
+                        },
+                    },
+                    "required": ["path"],
+                },
+            },
+        ]
 
     # ──────────────────────────────────────────────
     # History
@@ -350,6 +534,17 @@ class ChatEngine:
                 content=artifact_data["content"],
                 language=artifact_data.get("language"),
             )
+
+        # Store episode in Knowledge Graph (fire-and-forget)
+        try:
+            await graphiti_service.add_episode(
+                user_message=message,
+                assistant_response=response_text,
+                session_id=str(session_uuid),
+                skill_used=skill_used,
+            )
+        except Exception:
+            pass  # Knowledge Graph storage should never block chat
 
         return {
             "text": response_text,
@@ -753,6 +948,17 @@ class ChatEngine:
             )
         except Exception:
             pass
+
+        # Store episode in Knowledge Graph (fire-and-forget)
+        try:
+            await graphiti_service.add_episode(
+                user_message=message,
+                assistant_response=full_response,
+                session_id=str(session_uuid),
+                skill_used=skill_used,
+            )
+        except Exception:
+            pass  # Knowledge Graph storage should never block chat
 
         await db.commit()
 

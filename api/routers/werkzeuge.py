@@ -1,5 +1,6 @@
-"""Werkzeuge Endpoints — MCP Server Registry (CRUD)."""
+"""Werkzeuge Endpoints — MCP Server Registry (CRUD) + Discovery + Execution."""
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,6 +12,9 @@ from auth.dependencies import get_current_user
 from models.database import get_db
 from models.mcp_server import McpServer
 from models.user import User
+from services.mcp_client import mcp_client_manager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -91,7 +95,7 @@ async def create_werkzeug(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Register a new MCP server for the authenticated user."""
+    """Register a new MCP server and auto-discover its tools."""
     server = McpServer(
         user_id=user.id,
         name=request.name,
@@ -103,7 +107,37 @@ async def create_werkzeug(
     )
     db.add(server)
     await db.flush()
-    return {"werkzeug": _server_to_dict(server)}
+
+    # Auto-discover tools from the MCP server
+    discovered_tools: list[dict] = []
+    discovery_error: str | None = None
+    try:
+        discovered_tools = await mcp_client_manager.discover_tools(
+            server_id=str(server.id),
+            transport_type=server.transport_type,
+            config=server.config or {},
+        )
+        if discovered_tools:
+            await db.execute(
+                update(McpServer)
+                .where(McpServer.id == server.id)
+                .values(tools=discovered_tools)
+            )
+            await db.flush()
+            # Re-read to get updated tools
+            result2 = await db.execute(
+                select(McpServer).where(McpServer.id == server.id)
+            )
+            server = result2.scalar_one()
+    except Exception as e:
+        discovery_error = str(e)
+        logger.warning("Auto-discover failed for %s: %s", request.name, e)
+
+    return {
+        "werkzeug": _server_to_dict(server),
+        "discovered_tools": len(discovered_tools),
+        "discovery_error": discovery_error,
+    }
 
 
 @router.put("/werkzeuge/{server_id}")
@@ -191,8 +225,15 @@ async def list_werkzeug_tools(
             detail=f"Werkzeug '{server_id}' not found",
         )
 
-    # Format tool references in the "mcp__<server_name>__<tool_name>" pattern
-    tool_refs = [f"mcp__{server.name}__{tool}" for tool in (server.tools or [])]
+    # Tools may be stored as dicts (with schema) or strings (legacy)
+    tool_names = []
+    for tool in (server.tools or []):
+        if isinstance(tool, dict):
+            tool_names.append(tool.get("name", ""))
+        else:
+            tool_names.append(str(tool))
+
+    tool_refs = [f"mcp__{server.name}__{name}" for name in tool_names]
 
     return {
         "server_id": str(server.id),
@@ -202,3 +243,89 @@ async def list_werkzeug_tools(
         "tools": server.tools or [],
         "tool_refs": tool_refs,
     }
+
+
+# ──────────────────────────────────────────────
+# Discovery & Test Endpoints
+# ──────────────────────────────────────────────
+
+
+@router.post("/werkzeuge/{server_id}/discover")
+async def discover_werkzeug_tools(
+    server_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Connect to an MCP server and discover its tools.
+
+    Fetches tool schemas via MCP tools/list and stores them in the DB.
+    """
+    result = await db.execute(
+        select(McpServer).where(
+            McpServer.id == server_id,
+            McpServer.user_id == user.id,
+        )
+    )
+    server = result.scalar_one_or_none()
+    if server is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Werkzeug '{server_id}' not found",
+        )
+
+    try:
+        tools = await mcp_client_manager.discover_tools(
+            server_id=str(server.id),
+            transport_type=server.transport_type,
+            config=server.config or {},
+        )
+    except Exception as e:
+        logger.warning("MCP discover failed for %s: %s", server.name, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Verbindung zum MCP Server fehlgeschlagen: {str(e)}",
+        )
+
+    # Store full tool schemas in DB
+    await db.execute(
+        update(McpServer)
+        .where(McpServer.id == server_id)
+        .values(tools=tools)
+    )
+    await db.flush()
+
+    result = await db.execute(select(McpServer).where(McpServer.id == server_id))
+    updated = result.scalar_one()
+
+    return {
+        "werkzeug": _server_to_dict(updated),
+        "discovered_tools": len(tools),
+    }
+
+
+@router.post("/werkzeuge/{server_id}/test")
+async def test_werkzeug_connection(
+    server_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Test connection to an MCP server without persisting anything."""
+    result = await db.execute(
+        select(McpServer).where(
+            McpServer.id == server_id,
+            McpServer.user_id == user.id,
+        )
+    )
+    server = result.scalar_one_or_none()
+    if server is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Werkzeug '{server_id}' not found",
+        )
+
+    test_result = await mcp_client_manager.test_connection(
+        transport_type=server.transport_type,
+        config=server.config or {},
+    )
+
+    return test_result

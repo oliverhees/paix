@@ -1,7 +1,10 @@
 """Skill Execution Service — runs skills via the Claude LLM service."""
 
+import logging
 import time
 import uuid
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -431,6 +434,18 @@ class SkillService:
         Delegates to the existing execute() method and returns
         the result as a string suitable for tool_result content.
         """
+        # Handle MCP tools — dispatched to MCP client manager
+        if tool_name.startswith("mcp__"):
+            return await self._execute_mcp_tool(db, user_id, tool_name, tool_input)
+
+        # Handle API werkzeug tools — dispatched via httpx
+        if tool_name.startswith("api__"):
+            return await self._execute_api_tool(db, user_id, tool_name, tool_input)
+
+        # Handle storage tools
+        if tool_name.startswith("storage_"):
+            return await self._execute_storage_tool(user_id, tool_name, tool_input)
+
         # Handle built-in tools that don't go through the LLM skill pipeline
         if tool_name == "web_search":
             import os
@@ -652,6 +667,197 @@ class SkillService:
             "duration_ms": duration_ms,
             "execution_id": str(execution.id),
         }
+
+    async def _execute_mcp_tool(
+        self,
+        db: AsyncSession,
+        user_id: uuid.UUID,
+        tool_name: str,
+        tool_input: dict,
+    ) -> str:
+        """Execute an MCP tool call by routing to the correct MCP server.
+
+        Tool name format: mcp__{server_name}__{tool_name}
+        """
+        from models.mcp_server import McpServer
+        from services.mcp_client import mcp_client_manager
+
+        # Parse server_name and actual tool_name from the mcp__ prefix
+        parts = tool_name.split("__", 2)
+        if len(parts) != 3:
+            return f"Invalid MCP tool name format: {tool_name}"
+
+        _, server_name, actual_tool_name = parts
+
+        # Find the MCP server for this user
+        result = await db.execute(
+            select(McpServer).where(
+                McpServer.user_id == user_id,
+                McpServer.name == server_name,
+                McpServer.active == True,  # noqa: E712
+            )
+        )
+        server = result.scalar_one_or_none()
+        if server is None:
+            return f"MCP server '{server_name}' not found or inactive."
+
+        try:
+            return await mcp_client_manager.call_tool(
+                server_id=str(server.id),
+                transport_type=server.transport_type,
+                config=server.config or {},
+                tool_name=actual_tool_name,
+                arguments=tool_input,
+            )
+        except Exception as e:
+            logger.error("MCP tool execution failed: %s — %s", tool_name, e)
+            return f"MCP tool error: {str(e)}"
+
+    async def _execute_api_tool(
+        self,
+        db: AsyncSession,
+        user_id: uuid.UUID,
+        tool_name: str,
+        tool_input: dict,
+    ) -> str:
+        """Execute an API werkzeug tool call via httpx.
+
+        Tool name format: api__{werkzeug_name}__{endpoint_name}
+        """
+        import httpx
+        from models.api_werkzeug import ApiWerkzeug
+
+        parts = tool_name.split("__", 2)
+        if len(parts) != 3:
+            return f"Invalid API tool name format: {tool_name}"
+
+        _, werkzeug_name, endpoint_name = parts
+
+        result = await db.execute(
+            select(ApiWerkzeug).where(
+                ApiWerkzeug.user_id == user_id,
+                ApiWerkzeug.name == werkzeug_name,
+                ApiWerkzeug.active == True,  # noqa: E712
+            )
+        )
+        werkzeug = result.scalar_one_or_none()
+        if werkzeug is None:
+            return f"API werkzeug '{werkzeug_name}' not found or inactive."
+
+        # Find the endpoint definition
+        endpoint = None
+        for ep in (werkzeug.endpoints or []):
+            if isinstance(ep, dict) and ep.get("name") == endpoint_name:
+                endpoint = ep
+                break
+
+        if endpoint is None:
+            return f"Endpoint '{endpoint_name}' not found on API werkzeug '{werkzeug_name}'."
+
+        # Build request
+        method = endpoint.get("method", "GET").upper()
+        path = endpoint.get("path", "/")
+        url = f"{werkzeug.base_url}{path}"
+
+        # Build headers with auth
+        req_headers = dict(werkzeug.headers or {})
+        auth = werkzeug.auth or {}
+        if auth.get("type") == "bearer" and auth.get("token"):
+            req_headers["Authorization"] = f"Bearer {auth['token']}"
+        elif auth.get("type") == "header" and auth.get("key") and auth.get("value"):
+            req_headers[auth["key"]] = auth["value"]
+
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                if method in ("GET", "HEAD", "DELETE"):
+                    resp = await client.request(
+                        method, url, headers=req_headers, params=tool_input
+                    )
+                else:
+                    resp = await client.request(
+                        method, url, headers=req_headers, json=tool_input
+                    )
+
+                # Return response content
+                content_type = resp.headers.get("content-type", "")
+                if "json" in content_type:
+                    import json
+                    return json.dumps(resp.json(), indent=2, ensure_ascii=False)
+                return resp.text[:4000]  # Cap text responses
+
+        except Exception as e:
+            logger.error("API tool execution failed: %s — %s", tool_name, e)
+            return f"API tool error: {str(e)}"
+
+    async def _execute_storage_tool(
+        self,
+        user_id: uuid.UUID,
+        tool_name: str,
+        tool_input: dict,
+    ) -> str:
+        """Execute a storage tool call (list, read, write, delete)."""
+        from services.storage_service import storage_service
+        import json
+
+        try:
+            user_prefix = f"users/{user_id}/"
+
+            if tool_name == "storage_list":
+                path = tool_input.get("path", "")
+                full_path = user_prefix + path.lstrip("/")
+                result = await storage_service.list_objects(prefix=full_path)
+                # Strip user prefix
+                items = []
+                for f in result.get("folders", []):
+                    name = f["name"]
+                    items.append(f"📁 {name}/")
+                for f in result.get("files", []):
+                    name = f["name"]
+                    size = f.get("size", 0)
+                    items.append(f"📄 {name} ({size} bytes)")
+                if not items:
+                    return f"Ordner '{path or '/'}' ist leer."
+                return f"Inhalt von '{path or '/'}':\n" + "\n".join(items)
+
+            elif tool_name == "storage_read":
+                path = tool_input.get("path", "")
+                key = user_prefix + path.lstrip("/")
+                data, ct = await storage_service.download_file(key)
+                # Limit to 50KB for text content
+                if len(data) > 50 * 1024:
+                    return f"Datei zu groß zum Lesen ({len(data)} bytes). Nutze den Download-Link stattdessen."
+                try:
+                    text = data.decode("utf-8")
+                    return text
+                except UnicodeDecodeError:
+                    return f"Binärdatei ({ct}, {len(data)} bytes) — kann nicht als Text angezeigt werden."
+
+            elif tool_name == "storage_write":
+                path = tool_input.get("path", "")
+                content = tool_input.get("content", "")
+                ct = tool_input.get("content_type", "text/plain")
+                key = user_prefix + path.lstrip("/")
+                result = await storage_service.upload_file(
+                    key=key,
+                    data=content.encode("utf-8"),
+                    content_type=ct,
+                )
+                return f"Datei gespeichert: {path} ({result['size']} bytes)"
+
+            elif tool_name == "storage_delete":
+                path = tool_input.get("path", "")
+                key = user_prefix + path.lstrip("/")
+                await storage_service.delete_object(key)
+                return f"Gelöscht: {path}"
+
+            else:
+                return f"Unbekanntes Storage-Tool: {tool_name}"
+
+        except FileNotFoundError:
+            return f"Datei nicht gefunden: {tool_input.get('path', '')}"
+        except Exception as e:
+            logger.error("Storage tool error: %s — %s", tool_name, e)
+            return f"Storage-Fehler: {str(e)}"
 
 
 # Singleton instance

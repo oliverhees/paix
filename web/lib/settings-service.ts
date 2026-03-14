@@ -56,13 +56,19 @@ export interface NotificationSettingsUpdate {
 
 // ─── MCP / Werkzeuge Types ───
 
+export interface McpToolSchema {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+}
+
 export interface McpServer {
   id: string;
   name: string;
   description: string;
   transport_type: "stdio" | "sse" | "streamable_http";
   config: Record<string, unknown>;
-  tools: string[];
+  tools: (string | McpToolSchema)[];
   active: boolean;
   created_at: string | null;
 }
@@ -81,6 +87,48 @@ export interface McpServerUpdateRequest {
   transport_type?: string;
   config?: Record<string, unknown>;
   tools?: string[];
+  active?: boolean;
+}
+
+// ─── API Werkzeug Types ───
+
+export interface ApiEndpointDef {
+  name: string;
+  description: string;
+  method: string;
+  path: string;
+  parameters: Record<string, unknown>;
+}
+
+export interface ApiWerkzeug {
+  id: string;
+  name: string;
+  description: string;
+  base_url: string;
+  auth: Record<string, unknown>;
+  headers: Record<string, unknown>;
+  endpoints: ApiEndpointDef[];
+  active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ApiWerkzeugRequest {
+  name: string;
+  description?: string;
+  base_url: string;
+  auth?: Record<string, unknown>;
+  headers?: Record<string, unknown>;
+  endpoints?: ApiEndpointDef[];
+}
+
+export interface ApiWerkzeugUpdateRequest {
+  name?: string;
+  description?: string;
+  base_url?: string;
+  auth?: Record<string, unknown>;
+  headers?: Record<string, unknown>;
+  endpoints?: ApiEndpointDef[];
   active?: boolean;
 }
 
@@ -235,6 +283,22 @@ class SettingsService {
     });
   }
 
+  // ── Telegram Linking ──
+
+  async createTelegramLink(): Promise<{
+    code: string;
+    expires_in: number;
+    bot_name: string;
+    bot_link: string;
+    instruction: string;
+  }> {
+    return api.post("/notifications/telegram/link", {});
+  }
+
+  async disconnectTelegram(): Promise<{ message: string }> {
+    return api.delete<{ message: string }>("/notifications/telegram/link");
+  }
+
   // ── Skills ──
 
   async getSkills(): Promise<{ skills: SkillItem[] }> {
@@ -289,25 +353,82 @@ class SettingsService {
 
   // ── Werkzeuge (MCP Servers) ──
 
-  async getWerkzeuge(): Promise<{ servers: McpServer[] }> {
-    return api.get<{ servers: McpServer[] }>("/werkzeuge");
+  async getWerkzeuge(): Promise<{ werkzeuge: McpServer[] }> {
+    return api.get<{ werkzeuge: McpServer[] }>("/werkzeuge");
   }
 
   async createWerkzeug(
     data: McpServerRequest
-  ): Promise<{ server: McpServer }> {
-    return api.post<{ server: McpServer }>("/werkzeuge", data);
+  ): Promise<{ werkzeug: McpServer; discovered_tools: number; discovery_error: string | null }> {
+    return api.post<{ werkzeug: McpServer; discovered_tools: number; discovery_error: string | null }>("/werkzeuge", data);
   }
 
   async updateWerkzeug(
     id: string,
     data: McpServerUpdateRequest
-  ): Promise<{ server: McpServer }> {
-    return api.put<{ server: McpServer }>(`/werkzeuge/${id}`, data);
+  ): Promise<{ werkzeug: McpServer }> {
+    return api.put<{ werkzeug: McpServer }>(`/werkzeuge/${id}`, data);
   }
 
   async deleteWerkzeug(id: string): Promise<{ message: string }> {
     return api.delete<{ message: string }>(`/werkzeuge/${id}`);
+  }
+
+  async discoverWerkzeugTools(
+    id: string
+  ): Promise<{ werkzeug: McpServer; discovered_tools: number }> {
+    return api.post<{ werkzeug: McpServer; discovered_tools: number }>(
+      `/werkzeuge/${id}/discover`
+    );
+  }
+
+  async testWerkzeugConnection(
+    id: string
+  ): Promise<{
+    success: boolean;
+    tools_count: number;
+    tools: string[];
+    error: string | null;
+  }> {
+    return api.post<{
+      success: boolean;
+      tools_count: number;
+      tools: string[];
+      error: string | null;
+    }>(`/werkzeuge/${id}/test`);
+  }
+
+  // ── API Werkzeuge ──
+
+  async getApiWerkzeuge(): Promise<{ api_werkzeuge: ApiWerkzeug[] }> {
+    return api.get<{ api_werkzeuge: ApiWerkzeug[] }>("/api-werkzeuge");
+  }
+
+  async createApiWerkzeug(
+    data: ApiWerkzeugRequest
+  ): Promise<{ api_werkzeug: ApiWerkzeug }> {
+    return api.post<{ api_werkzeug: ApiWerkzeug }>("/api-werkzeuge", data);
+  }
+
+  async updateApiWerkzeug(
+    id: string,
+    data: ApiWerkzeugUpdateRequest
+  ): Promise<{ api_werkzeug: ApiWerkzeug }> {
+    return api.put<{ api_werkzeug: ApiWerkzeug }>(`/api-werkzeuge/${id}`, data);
+  }
+
+  async deleteApiWerkzeug(id: string): Promise<{ message: string }> {
+    return api.delete<{ message: string }>(`/api-werkzeuge/${id}`);
+  }
+
+  async testApiWerkzeugConnection(
+    id: string
+  ): Promise<{ success: boolean; status_code: number | null; error: string | null }> {
+    return api.post<{
+      success: boolean;
+      status_code: number | null;
+      error: string | null;
+    }>(`/api-werkzeuge/${id}/test`);
   }
 }
 
