@@ -12,6 +12,8 @@ import {
   Settings,
   Timer,
   Zap,
+  Wrench,
+  FolderOpen,
   ChevronsUpDown,
   LogOut,
 } from "lucide-react";
@@ -61,6 +63,16 @@ const navItems = [
     title: "Skills",
     href: "/skills",
     icon: Zap,
+  },
+  {
+    title: "Werkzeuge",
+    href: "/werkzeuge",
+    icon: Wrench,
+  },
+  {
+    title: "Dateien",
+    href: "/dateien",
+    icon: FolderOpen,
   },
   {
     title: "Routinen",

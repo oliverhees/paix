@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     vapid_private_key: str = Field(default="", alias="VAPID_PRIVATE_KEY")
     vapid_claims_email: str = Field(default="oliver@hrcodelabs.de", alias="VAPID_CLAIMS_EMAIL")
 
+    # ─── Object Storage (S3-compatible / Hetzner) ───
+    s3_endpoint_url: str = Field(default="", alias="S3_ENDPOINT_URL")
+    s3_access_key: str = Field(default="", alias="S3_ACCESS_KEY")
+    s3_secret_key: str = Field(default="", alias="S3_SECRET_KEY")
+    s3_bucket_name: str = Field(default="paix-files", alias="S3_BUCKET_NAME")
+    s3_region: str = Field(default="fsn1", alias="S3_REGION")
+
     # ─── Docker Sandbox ───
     docker_sandbox_enabled: bool = False
     docker_sandbox_image: str = "paix-sandbox:latest"

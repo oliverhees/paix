@@ -25,6 +25,12 @@ import {
   Check,
   Loader2,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle,
+  Target,
+  Lightbulb,
+  Sparkles,
 } from "lucide-react";
 import { useTelosStore, type TelosDimension } from "@/lib/stores/telos-store";
 import type { TelosEntry } from "@/lib/telos-service";
@@ -97,7 +103,7 @@ function EntryItem({
             size="icon"
             className="h-7 w-7 text-green-600 hover:text-green-700"
             onClick={() => onConfirm(entry.id)}
-            title="Bestaetigen"
+            title="Bestätigen"
           >
             <Check className="h-3.5 w-3.5" />
           </Button>
@@ -107,7 +113,7 @@ function EntryItem({
           size="icon"
           className="h-7 w-7 text-destructive hover:text-destructive"
           onClick={() => onDelete(entry.id)}
-          title="Loeschen"
+          title="Löschen"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
@@ -154,13 +160,13 @@ function DimensionEditor({ dimension }: { dimension: TelosDimension }) {
     if (!newEntryContent.trim()) return;
     await addEntry(dimension.id, newEntryContent.trim());
     setNewEntryContent("");
-    toast.success("Eintrag hinzugefuegt");
+    toast.success("Eintrag hinzugefügt");
   }, [newEntryContent, dimension.id, addEntry]);
 
   const handleDeleteEntry = useCallback(
     async (entryId: string) => {
       await deleteEntry(dimension.id, entryId);
-      toast.success("Eintrag geloescht");
+      toast.success("Eintrag gelöscht");
     },
     [dimension.id, deleteEntry]
   );
@@ -168,7 +174,7 @@ function DimensionEditor({ dimension }: { dimension: TelosDimension }) {
   const handleConfirmEntry = useCallback(
     async (entryId: string) => {
       await confirmEntry(dimension.id, entryId);
-      toast.success("Agent-Vorschlag bestaetigt");
+      toast.success("Agent-Vorschlag bestätigt");
     },
     [dimension.id, confirmEntry]
   );
@@ -206,7 +212,7 @@ function DimensionEditor({ dimension }: { dimension: TelosDimension }) {
         {dimension.agentAdditions && dimension.agentAdditions.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground">
-              Ergaenzungen von PAI-X:
+              Ergänzungen von PAI-X:
             </p>
             {dimension.agentAdditions.map((addition, i) => (
               <div
@@ -230,7 +236,7 @@ function DimensionEditor({ dimension }: { dimension: TelosDimension }) {
                 onClick={() => setShowEntries(!showEntries)}
                 className="mb-2 text-xs text-muted-foreground"
               >
-                {showEntries ? "Eintraege ausblenden" : `${activeEntries.length} Eintraege anzeigen`}
+                {showEntries ? "Einträge ausblenden" : `${activeEntries.length} Einträge anzeigen`}
               </Button>
               {showEntries && (
                 <div className="space-y-2">
@@ -254,7 +260,7 @@ function DimensionEditor({ dimension }: { dimension: TelosDimension }) {
           <Input
             value={newEntryContent}
             onChange={(e) => setNewEntryContent(e.target.value)}
-            placeholder="Neuen Eintrag hinzufuegen..."
+            placeholder="Neuen Eintrag hinzufügen..."
             className="text-sm"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -268,7 +274,7 @@ function DimensionEditor({ dimension }: { dimension: TelosDimension }) {
             size="icon"
             onClick={handleAddEntry}
             disabled={!newEntryContent.trim()}
-            title="Eintrag hinzufuegen"
+            title="Eintrag hinzufügen"
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -338,6 +344,125 @@ function MobileAccordion({
   );
 }
 
+/* ── TELOS Explainer ────────────────────────────────── */
+
+function TelosExplainer() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between p-4 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <HelpCircle className="h-5 w-5 text-primary" />
+          <span className="font-medium">Was ist TELOS und wie nutze ich es?</span>
+        </div>
+        {open ? (
+          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+
+      {open && (
+        <CardContent className="space-y-5 border-t pt-4">
+          {/* Was ist TELOS */}
+          <div className="space-y-2">
+            <h3 className="flex items-center gap-2 font-semibold">
+              <Brain className="h-4 w-4 text-primary" />
+              Was ist TELOS?
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              TELOS ist dein <strong>Identity Layer</strong> — dein persönliches Profil, das PAI-X
+              sagt, wer du bist, was dir wichtig ist und wohin du willst. Je mehr du hier einträgst,
+              desto besser kann PAI-X dich unterstützen, weil es den Kontext deines Lebens versteht.
+            </p>
+          </div>
+
+          {/* Warum TELOS */}
+          <div className="space-y-2">
+            <h3 className="flex items-center gap-2 font-semibold">
+              <Target className="h-4 w-4 text-primary" />
+              Warum ist das wichtig?
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Ohne TELOS ist PAI-X ein generischer Assistent. <strong>Mit</strong> TELOS wird es zu
+              deinem persönlichen Berater: Es kennt deine Ziele, versteht deine Herausforderungen
+              und kann proaktiv Vorschläge machen, die zu deinem Leben passen.
+            </p>
+          </div>
+
+          {/* Die 10 Dimensionen */}
+          <div className="space-y-3">
+            <h3 className="flex items-center gap-2 font-semibold">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Die 10 Dimensionen
+            </h3>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[
+                { name: "Mission", desc: "Dein übergeordneter Lebenszweck" },
+                { name: "Ziele", desc: "Konkrete Ziele für die nächsten Monate" },
+                { name: "Projekte", desc: "Woran du gerade arbeitest" },
+                { name: "Überzeugungen", desc: "Deine Kernwerte und Annahmen" },
+                { name: "Modelle", desc: "Mentale Frameworks, die du nutzt" },
+                { name: "Strategien", desc: "Wie du deine Ziele erreichst" },
+                { name: "Narrative", desc: "Geschichten, die du erzählst" },
+                { name: "Gelerntes", desc: "Erkenntnisse und Lessons Learned" },
+                { name: "Herausforderungen", desc: "Aktuelle Hindernisse" },
+                { name: "Ideen", desc: "Neue Einfälle und Möglichkeiten" },
+              ].map((d) => (
+                <div key={d.name} className="rounded-md border bg-background p-2.5 text-sm">
+                  <span className="font-medium">{d.name}</span>
+                  <span className="text-muted-foreground"> — {d.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Wie nutze ich es */}
+          <div className="space-y-2">
+            <h3 className="flex items-center gap-2 font-semibold">
+              <Lightbulb className="h-4 w-4 text-primary" />
+              So nutzt du TELOS am besten
+            </h3>
+            <ul className="space-y-1.5 text-sm text-muted-foreground">
+              <li className="flex gap-2">
+                <span className="font-medium text-foreground">1.</span>
+                <span>
+                  <strong>Fang mit der Mission an</strong> — Was treibt dich an? Ein Satz reicht.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-medium text-foreground">2.</span>
+                <span>
+                  <strong>Trage deine Ziele ein</strong> — Was willst du in den nächsten 3-12 Monaten
+                  erreichen?
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-medium text-foreground">3.</span>
+                <span>
+                  <strong>Fülle nach und nach</strong> — Du musst nicht alles auf einmal ausfüllen.
+                  Komm immer wieder zurück.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-medium text-foreground">4.</span>
+                <span>
+                  <strong>PAI-X lernt mit</strong> — Im Chat kann PAI-X Vorschläge machen, die hier
+                  als grüne Einträge erscheinen. Du bestätigst oder löschst sie.
+                </span>
+              </li>
+            </ul>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 /* ── Main TELOS Page ────────────────────────────────── */
 
 export default function TelosPage() {
@@ -375,6 +500,9 @@ export default function TelosPage() {
           Dein Identity Layer — 10 Dimensionen, die PAI-X sagen, wer du bist.
         </p>
       </div>
+
+      {/* Explainer */}
+      <TelosExplainer />
 
       {/* Error Banner */}
       {error && (

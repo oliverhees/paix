@@ -418,7 +418,7 @@ export default function RoutinesAnalyticsPage() {
   const successRate = summary?.success_rate ?? 0;
 
   return (
-    <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-5xl mx-auto w-full">
+    <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
       {/* Header */}
       <div className="flex items-start gap-4">
         <Button

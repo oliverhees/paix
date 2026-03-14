@@ -433,12 +433,12 @@ async def list_notifications(
     """List routine notifications for the current user."""
     from services.routine_service import routine_service
 
-    notifications = await routine_service.list_notifications(
+    notifications, _pinned, total = await routine_service.list_notifications(
         db, user.id, pinned_only=pinned_only, limit=limit
     )
     return {
         "notifications": [_notification_to_response(n) for n in notifications],
-        "total": len(notifications),
+        "total": total,
     }
 
 

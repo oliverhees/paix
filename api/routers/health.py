@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from config import settings
+from services.graphiti_service import graphiti_service
 
 router = APIRouter()
 
@@ -14,6 +15,7 @@ async def health_check():
     Returns service status and version info.
     Used by Docker healthcheck and monitoring.
     """
+    kg_status = await graphiti_service.get_status()
     return {
         "status": "healthy",
         "version": settings.app_version,
@@ -21,8 +23,7 @@ async def health_check():
         "services": {
             "postgres": "connected",  # TODO: actual check
             "redis": "connected",  # TODO: actual check
-            "graphiti": "connected",  # TODO: actual check
-            "falkordb": "connected",  # TODO: actual check
+            "knowledge_graph": "connected" if kg_status["connected"] else "disconnected",
         },
     }
 

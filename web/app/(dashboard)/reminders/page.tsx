@@ -646,7 +646,7 @@ export default function RemindersPage() {
       : reminders;
 
   return (
-    <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full">
+    <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
       {/* Page Header */}
       <div className="flex items-start justify-between gap-4">
         <div>

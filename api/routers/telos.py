@@ -1,4 +1,8 @@
-"""TELOS Endpoints — Identity Layer management with auth."""
+"""TELOS Endpoints — Identity Layer management with auth.
+
+TELOS data lives in PostgreSQL (TelosSnapshot table).
+Knowledge Graph (Graphiti) is used separately for conversation learning.
+"""
 
 import uuid as uuid_mod
 from datetime import datetime, timezone
@@ -17,7 +21,6 @@ from models.schemas import (
 )
 from models.telos_snapshot import TelosSnapshot
 from models.user import User
-from services.graphiti_service import graphiti_service
 
 router = APIRouter()
 
@@ -45,61 +48,43 @@ def _validate_dimension(dimension: str) -> str:
     return dimension
 
 
+async def _get_dimension_entries(
+    db: AsyncSession, user_id, dimension: str
+) -> tuple[list[TelosEntryResponse], datetime | None]:
+    """Load entries for a dimension from PostgreSQL."""
+    result = await db.execute(
+        select(TelosSnapshot)
+        .where(
+            TelosSnapshot.user_id == user_id,
+            TelosSnapshot.dimension == dimension,
+        )
+        .order_by(TelosSnapshot.created_at.desc())
+        .limit(1)
+    )
+    snapshot = result.scalar_one_or_none()
+    if snapshot and snapshot.content_json:
+        entries = [
+            TelosEntryResponse(**e)
+            for e in snapshot.content_json.get("entries", [])
+        ]
+        return entries, snapshot.created_at
+    return [], None
+
+
 @router.get("/telos", response_model=TelosAllDimensionsResponse)
 async def get_all_dimensions(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all 10 TELOS dimensions with their entries."""
-    user_id = str(user.id)
     dimensions: dict[str, list[TelosEntryResponse]] = {}
     latest_update: datetime | None = None
 
     for dim in VALID_DIMENSIONS:
-        try:
-            data = await graphiti_service.get_telos_dimension(user_id, dim)
-            entries_data = data.get("entries", [])
-            if not entries_data:
-                raise ValueError("No entries from Graphiti")
-            entries = [
-                TelosEntryResponse(
-                    id=e.get("id", ""),
-                    content=e.get("content", ""),
-                    source=e.get("source", "user"),
-                    status=e.get("status", "active"),
-                    created_at=e.get("created_at"),
-                    updated_at=e.get("updated_at"),
-                )
-                for e in entries_data
-            ]
-            dimensions[dim] = entries
-
-            dim_updated = data.get("last_updated")
-            if dim_updated and (latest_update is None or dim_updated > latest_update):
-                latest_update = dim_updated
-        except Exception:
-            # Fallback: try PostgreSQL snapshot
-            try:
-                result = await db.execute(
-                    select(TelosSnapshot)
-                    .where(
-                        TelosSnapshot.user_id == user.id,
-                        TelosSnapshot.dimension == dim,
-                    )
-                    .order_by(TelosSnapshot.created_at.desc())
-                    .limit(1)
-                )
-                snapshot = result.scalar_one_or_none()
-                if snapshot and snapshot.content_json:
-                    entries = [
-                        TelosEntryResponse(**e)
-                        for e in snapshot.content_json.get("entries", [])
-                    ]
-                    dimensions[dim] = entries
-                else:
-                    dimensions[dim] = []
-            except Exception:
-                dimensions[dim] = []
+        entries, updated_at = await _get_dimension_entries(db, user.id, dim)
+        dimensions[dim] = entries
+        if updated_at and (latest_update is None or updated_at > latest_update):
+            latest_update = updated_at
 
     return TelosAllDimensionsResponse(
         dimensions=dimensions,
@@ -115,52 +100,13 @@ async def get_dimension(
 ):
     """Get a specific TELOS dimension with all entries."""
     _validate_dimension(dimension)
-    user_id = str(user.id)
+    entries, updated_at = await _get_dimension_entries(db, user.id, dimension)
 
-    try:
-        data = await graphiti_service.get_telos_dimension(user_id, dimension)
-        entries_data = data.get("entries", [])
-        if not entries_data:
-            raise ValueError("No entries from Graphiti, falling back to PostgreSQL")
-        entries = [
-            TelosEntryResponse(
-                id=e.get("id", ""),
-                content=e.get("content", ""),
-                source=e.get("source", "user"),
-                status=e.get("status", "active"),
-                created_at=e.get("created_at"),
-                updated_at=e.get("updated_at"),
-            )
-            for e in entries_data
-        ]
-        return TelosDimensionResponse(
-            dimension=dimension,
-            entries=entries,
-            last_updated=data.get("last_updated"),
-        )
-    except Exception:
-        # Fallback to PostgreSQL snapshot
-        result = await db.execute(
-            select(TelosSnapshot)
-            .where(
-                TelosSnapshot.user_id == user.id,
-                TelosSnapshot.dimension == dimension,
-            )
-            .order_by(TelosSnapshot.created_at.desc())
-            .limit(1)
-        )
-        snapshot = result.scalar_one_or_none()
-        entries = []
-        if snapshot and snapshot.content_json:
-            entries = [
-                TelosEntryResponse(**e)
-                for e in snapshot.content_json.get("entries", [])
-            ]
-        return TelosDimensionResponse(
-            dimension=dimension,
-            entries=entries,
-            last_updated=snapshot.created_at if snapshot else None,
-        )
+    return TelosDimensionResponse(
+        dimension=dimension,
+        entries=entries,
+        last_updated=updated_at,
+    )
 
 
 @router.put("/telos/{dimension}")
@@ -172,37 +118,19 @@ async def update_dimension(
 ):
     """Update all entries in a TELOS dimension (user edit)."""
     _validate_dimension(dimension)
-    user_id = str(user.id)
 
     updated_entries = []
     for entry in entries:
-        try:
-            result = await graphiti_service.create_node(
-                node_type="TelosEntry",
-                data={
-                    "dimension": dimension,
-                    "content": entry.content,
-                    "source": "user",
-                    "status": "active",
-                    "metadata": entry.metadata or {},
-                    "user_id": user_id,
-                },
-            )
-            updated_entries.append({
-                "id": result.get("id", ""),
-                "content": entry.content,
-                "source": "user",
-                "status": "active",
-            })
-        except Exception:
-            updated_entries.append({
-                "id": str(uuid_mod.uuid4()),
-                "content": entry.content,
-                "source": "user",
-                "status": "active",
-            })
+        updated_entries.append({
+            "id": str(uuid_mod.uuid4()),
+            "content": entry.content,
+            "source": "user",
+            "status": "active",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
 
-    # Save snapshot to PostgreSQL as backup
+    # Save snapshot to PostgreSQL
     snapshot = TelosSnapshot(
         user_id=user.id,
         dimension=dimension,
@@ -227,32 +155,50 @@ async def add_entry(
 ):
     """Add a new entry to a TELOS dimension."""
     _validate_dimension(dimension)
-    user_id = str(user.id)
 
+    # Load existing entries
+    entries, _ = await _get_dimension_entries(db, user.id, dimension)
+    existing = [
+        {
+            "id": e.id,
+            "content": e.content,
+            "source": e.source,
+            "status": e.status,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "updated_at": e.updated_at.isoformat() if e.updated_at else None,
+        }
+        for e in entries
+    ]
+
+    # Add new entry
     entry_id = str(uuid_mod.uuid4())
-    try:
-        result = await graphiti_service.create_node(
-            node_type="TelosEntry",
-            data={
-                "dimension": dimension,
-                "content": entry.content,
-                "source": "user",
-                "status": "active",
-                "metadata": entry.metadata or {},
-                "user_id": user_id,
-            },
-        )
-        entry_id = result.get("id", entry_id)
-    except Exception:
-        pass
+    now = datetime.now(timezone.utc)
+    new_entry = {
+        "id": entry_id,
+        "content": entry.content,
+        "source": "user",
+        "status": "active",
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+    }
+    existing.append(new_entry)
+
+    # Save updated snapshot
+    snapshot = TelosSnapshot(
+        user_id=user.id,
+        dimension=dimension,
+        content_json={"entries": existing},
+    )
+    db.add(snapshot)
+    await db.flush()
 
     return TelosEntryResponse(
         id=entry_id,
         content=entry.content,
         source="user",
         status="active",
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=now,
+        updated_at=now,
     )
 
 
@@ -261,19 +207,32 @@ async def delete_entry(
     dimension: str,
     entry_id: str,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Delete a TELOS entry."""
     _validate_dimension(dimension)
-    # Graphiti does not have a direct delete — we mark as archived
-    try:
-        await graphiti_service.update_telos_entry(
-            user_id=str(user.id),
-            dimension=dimension,
-            entry_id=entry_id,
-            content="[ARCHIVED]",
-        )
-    except Exception:
-        pass
+
+    entries, _ = await _get_dimension_entries(db, user.id, dimension)
+    remaining = [
+        {
+            "id": e.id,
+            "content": e.content,
+            "source": e.source,
+            "status": e.status,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "updated_at": e.updated_at.isoformat() if e.updated_at else None,
+        }
+        for e in entries
+        if e.id != entry_id
+    ]
+
+    snapshot = TelosSnapshot(
+        user_id=user.id,
+        dimension=dimension,
+        content_json={"entries": remaining},
+    )
+    db.add(snapshot)
+    await db.flush()
     return None
 
 
@@ -282,18 +241,33 @@ async def confirm_entry(
     dimension: str,
     entry_id: str,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Confirm an agent-suggested TELOS entry."""
     _validate_dimension(dimension)
-    try:
-        await graphiti_service.update_telos_entry(
-            user_id=str(user.id),
-            dimension=dimension,
-            entry_id=entry_id,
-            content="",  # Content stays the same, status changes
-        )
-    except Exception:
-        pass
+
+    entries, _ = await _get_dimension_entries(db, user.id, dimension)
+    updated = []
+    for e in entries:
+        entry_dict = {
+            "id": e.id,
+            "content": e.content,
+            "source": e.source,
+            "status": "active" if e.id == entry_id else e.status,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+            if e.id == entry_id
+            else (e.updated_at.isoformat() if e.updated_at else None),
+        }
+        updated.append(entry_dict)
+
+    snapshot = TelosSnapshot(
+        user_id=user.id,
+        dimension=dimension,
+        content_json={"entries": updated},
+    )
+    db.add(snapshot)
+    await db.flush()
     return {"message": "Entry confirmed"}
 
 
@@ -309,30 +283,45 @@ async def agent_add_entry(
     Entry is added with status 'review_needed' until user confirms.
     """
     _validate_dimension(dimension)
-    user_id = str(user.id)
+
+    entries, _ = await _get_dimension_entries(db, user.id, dimension)
+    existing = [
+        {
+            "id": e.id,
+            "content": e.content,
+            "source": e.source,
+            "status": e.status,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "updated_at": e.updated_at.isoformat() if e.updated_at else None,
+        }
+        for e in entries
+    ]
 
     entry_id = str(uuid_mod.uuid4())
-    try:
-        result = await graphiti_service.create_node(
-            node_type="TelosEntry",
-            data={
-                "dimension": dimension,
-                "content": entry.content,
-                "source": "agent",
-                "status": "review_needed",
-                "metadata": entry.metadata or {},
-                "user_id": user_id,
-            },
-        )
-        entry_id = result.get("id", entry_id)
-    except Exception:
-        pass
+    now = datetime.now(timezone.utc)
+    new_entry = {
+        "id": entry_id,
+        "content": entry.content,
+        "source": "agent",
+        "status": "review_needed",
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+    }
+    existing.append(new_entry)
+
+    snapshot = TelosSnapshot(
+        user_id=user.id,
+        dimension=dimension,
+        content_json={"entries": existing},
+    )
+    db.add(snapshot)
+    await db.flush()
 
     return TelosEntryResponse(
         id=entry_id,
         content=entry.content,
         source="agent",
         status="review_needed",
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=now,
+        updated_at=now,
     )

@@ -64,18 +64,18 @@ export const DIMENSION_META: Record<
   mission: {
     name: "Mission",
     description:
-      "Dein uebergeordneter Lebenszweck und deine Kernmotivation.",
+      "Dein übergeordneter Lebenszweck und deine Kernmotivation.",
   },
   goals: {
     name: "Ziele",
-    description: "Konkrete, messbare Ziele fuer die naechsten 3-12 Monate.",
+    description: "Konkrete, messbare Ziele für die nächsten 3-12 Monate.",
   },
   projects: {
     name: "Projekte",
     description: "Aktive Projekte und deren Status.",
   },
   beliefs: {
-    name: "Ueberzeugungen",
+    name: "Überzeugungen",
     description:
       "Kernwerte und fundamentale Annahmen, die dein Handeln leiten.",
   },
@@ -102,7 +102,7 @@ export const DIMENSION_META: Record<
   },
   ideas: {
     name: "Ideen",
-    description: "Neue Ideen, Einfaelle und moegliche Richtungen.",
+    description: "Neue Ideen, Einfälle und mögliche Richtungen.",
   },
 };
 

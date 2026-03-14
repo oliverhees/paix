@@ -9,9 +9,6 @@ import {
   Plus,
   Trash2,
   RefreshCw,
-  Tag,
-  Clock,
-  Bot,
   Brain,
   Zap,
   LayoutTemplate,
@@ -31,12 +28,19 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Tabs,
   TabsList,
@@ -275,225 +279,198 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-// ─── Routine Card ─────────────────────────────────────────────────────────────
+// ─── Routines Table ──────────────────────────────────────────────────────────
 
-function RoutineCard({
-  routine,
+function RoutinesTable({
+  routines,
   onDelete,
   onToggle,
   onRun,
   selectionMode,
-  selected,
+  selectedIds,
   onSelect,
 }: {
-  routine: RoutineResponse;
+  routines: RoutineResponse[];
   onDelete: (id: string) => Promise<void>;
   onToggle: (id: string) => Promise<void>;
   onRun: (id: string) => Promise<void>;
   selectionMode: boolean;
-  selected: boolean;
+  selectedIds: Set<string>;
   onSelect: (id: string) => void;
 }) {
   const router = useRouter();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [runningId, setRunningId] = useState<string | null>(null);
+  const [actionId, setActionId] = useState<{ id: string; type: string } | null>(null);
 
-  const statusStyle =
-    RUN_STATUS_STYLES[routine.last_run_status ?? ""] ??
-    "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
-  const statusLabel =
-    RUN_STATUS_LABELS[routine.last_run_status ?? ""] ?? routine.last_run_status;
-
-  async function handleDelete(e: React.MouseEvent) {
+  async function handleAction(id: string, type: string, fn: (id: string) => Promise<void>, e: React.MouseEvent) {
     e.stopPropagation();
-    setDeletingId(routine.id);
+    setActionId({ id, type });
     try {
-      await onDelete(routine.id);
+      await fn(id);
     } finally {
-      setDeletingId(null);
-    }
-  }
-
-  async function handleToggle(e: React.MouseEvent) {
-    e.stopPropagation();
-    setTogglingId(routine.id);
-    try {
-      await onToggle(routine.id);
-    } finally {
-      setTogglingId(null);
-    }
-  }
-
-  async function handleRun(e: React.MouseEvent) {
-    e.stopPropagation();
-    setRunningId(routine.id);
-    try {
-      await onRun(routine.id);
-    } finally {
-      setRunningId(null);
-    }
-  }
-
-  function handleCardClick() {
-    if (selectionMode) {
-      onSelect(routine.id);
-    } else {
-      router.push(`/routines/${routine.id}`);
+      setActionId(null);
     }
   }
 
   return (
-    <div className="relative">
-      {selectionMode && (
-        <div
-          className="absolute top-3 left-3 z-10 cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect(routine.id);
-          }}
-        >
-          <div
-            className={`size-5 rounded border-2 flex items-center justify-center transition-colors ${
-              selected
-                ? "bg-primary border-primary text-primary-foreground"
-                : "bg-background border-muted-foreground/40 hover:border-primary"
-            }`}
-          >
-            {selected && <Check className="size-3" />}
-          </div>
-        </div>
-      )}
-      <Card
-        className={`cursor-pointer transition-colors hover:bg-muted/30 ${
-          selected ? "ring-2 ring-primary" : ""
-        } ${selectionMode ? "pl-1" : ""}`}
-        onClick={handleCardClick}
-      >
-        <CardHeader className={`pb-2 ${selectionMode ? "pl-10" : ""}`}>
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <Timer className="size-4 shrink-0 text-muted-foreground" />
-              <span className="font-semibold text-sm truncate">{routine.name}</span>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-              <Badge variant="outline" className="gap-1 text-xs">
-                <Clock className="size-3" />
-                {routine.cron_human}
-              </Badge>
-              {routine.is_active ? (
-                <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-0 text-xs">
-                  Aktiv
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="text-xs">
-                  Inaktiv
-                </Badge>
-              )}
-            </div>
-          </div>
-        </CardHeader>
+    <div className="rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {selectionMode && <TableHead className="w-10" />}
+            <TableHead>Name</TableHead>
+            <TableHead className="hidden sm:table-cell">Zeitplan</TableHead>
+            <TableHead className="hidden md:table-cell">Status</TableHead>
+            <TableHead className="hidden md:table-cell text-right">Laeufe</TableHead>
+            <TableHead className="hidden lg:table-cell text-right">Kosten</TableHead>
+            <TableHead className="text-right">Aktionen</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {routines.map((routine) => {
+            const selected = selectedIds.has(routine.id);
+            const statusStyle =
+              RUN_STATUS_STYLES[routine.last_run_status ?? ""] ??
+              "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
+            const statusLabel =
+              RUN_STATUS_LABELS[routine.last_run_status ?? ""] ?? routine.last_run_status;
 
-        <CardContent className={`space-y-2.5 ${selectionMode ? "pl-10" : ""}`}>
-          {routine.description && (
-            <p className="text-sm text-muted-foreground">{routine.description}</p>
-          )}
-
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {routine.last_run_status && (
-              <span
-                className={`flex items-center gap-1 rounded px-1.5 py-0.5 font-medium ${statusStyle}`}
+            return (
+              <TableRow
+                key={routine.id}
+                className={`cursor-pointer ${selected ? "bg-muted/50" : ""}`}
+                data-state={selected ? "selected" : undefined}
+                onClick={() =>
+                  selectionMode
+                    ? onSelect(routine.id)
+                    : router.push(`/routines/${routine.id}`)
+                }
               >
-                <Zap className="size-3" />
-                {statusLabel}
-              </span>
-            )}
-            {routine.next_run_at && (
-              <span className="flex items-center gap-1">
-                <Clock className="size-3" />
-                Nachster Lauf: {formatDate(routine.next_run_at)}
-              </span>
-            )}
-            <span className="flex items-center gap-1">
-              <RefreshCw className="size-3" />
-              {routine.total_runs} Laufe
-            </span>
-            <span className="flex items-center gap-1">
-              <Bot className="size-3" />
-              {routine.model}
-            </span>
-            {routine.total_cost_cents > 0 && (
-              <span className="flex items-center gap-1">
-                {formatCostEur(routine.total_cost_cents)}
-              </span>
-            )}
-          </div>
-
-          {routine.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {routine.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground"
-                >
-                  <Tag className="size-3" />
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <Separator />
-
-          <div className="flex items-center gap-2 pt-0.5">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 h-7 text-xs"
-              onClick={handleRun}
-              disabled={runningId === routine.id}
-            >
-              <Play className="size-3" />
-              {runningId === routine.id ? "..." : "Jetzt ausfuhren"}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1.5"
-              onClick={handleToggle}
-              disabled={togglingId === routine.id}
-            >
-              {togglingId === routine.id ? (
-                "..."
-              ) : routine.is_active ? (
-                <>
-                  <Pause className="size-3" />
-                  Deaktivieren
-                </>
-              ) : (
-                <>
-                  <Play className="size-3" />
-                  Aktivieren
-                </>
-              )}
-            </Button>
-
-            <div className="ml-auto">
-              <Button
-                variant="destructive"
-                size="sm"
-                className="h-7 text-xs gap-1.5"
-                onClick={handleDelete}
-                disabled={deletingId === routine.id}
-              >
-                <Trash2 className="size-3" />
-                {deletingId === routine.id ? "..." : "Loschen"}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+                {selectionMode && (
+                  <TableCell>
+                    <div
+                      className="cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(routine.id);
+                      }}
+                    >
+                      <div
+                        className={`size-4 rounded border-2 flex items-center justify-center transition-colors ${
+                          selected
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "bg-background border-muted-foreground/40 hover:border-primary"
+                        }`}
+                      >
+                        {selected && <Check className="size-3" />}
+                      </div>
+                    </div>
+                  </TableCell>
+                )}
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`size-2 rounded-full shrink-0 ${
+                        routine.is_active ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
+                      }`}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate max-w-[200px]">{routine.name}</p>
+                      {routine.tags.length > 0 && (
+                        <div className="flex gap-1 mt-0.5">
+                          {routine.tags.slice(0, 2).map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded px-1 py-0.5 text-[10px] bg-muted text-muted-foreground"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  <span className="text-xs text-muted-foreground">{routine.cron_human}</span>
+                  {routine.next_run_at && (
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                      {formatDate(routine.next_run_at)}
+                    </p>
+                  )}
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {routine.last_run_status ? (
+                    <span
+                      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ${statusStyle}`}
+                    >
+                      <Zap className="size-3" />
+                      {statusLabel}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="hidden md:table-cell text-right">
+                  <span className="text-xs text-muted-foreground">{routine.total_runs}</span>
+                </TableCell>
+                <TableCell className="hidden lg:table-cell text-right">
+                  <span className="text-xs text-muted-foreground">
+                    {routine.total_cost_cents > 0 ? formatCostEur(routine.total_cost_cents) : "—"}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      onClick={(e) => handleAction(routine.id, "run", onRun, e)}
+                      disabled={actionId?.id === routine.id && actionId.type === "run"}
+                      title="Jetzt ausfuehren"
+                    >
+                      {actionId?.id === routine.id && actionId.type === "run" ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Play className="size-3.5" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      onClick={(e) => handleAction(routine.id, "toggle", onToggle, e)}
+                      disabled={actionId?.id === routine.id && actionId.type === "toggle"}
+                      title={routine.is_active ? "Deaktivieren" : "Aktivieren"}
+                    >
+                      {actionId?.id === routine.id && actionId.type === "toggle" ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : routine.is_active ? (
+                        <Pause className="size-3.5" />
+                      ) : (
+                        <Power className="size-3.5" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-destructive hover:text-destructive"
+                      onClick={(e) => handleAction(routine.id, "delete", onDelete, e)}
+                      disabled={actionId?.id === routine.id && actionId.type === "delete"}
+                      title="Loeschen"
+                    >
+                      {actionId?.id === routine.id && actionId.type === "delete" ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -502,24 +479,47 @@ function RoutineCard({
 
 function RoutineSkeleton() {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-4 w-48" />
-          <Skeleton className="h-5 w-32 rounded-md" />
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-2/3" />
-        <Separator />
-        <div className="flex gap-2">
-          <Skeleton className="h-7 w-32" />
-          <Skeleton className="h-7 w-28" />
-          <Skeleton className="h-7 w-20 ml-auto" />
-        </div>
-      </CardContent>
-    </Card>
+    <div className="rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead className="hidden sm:table-cell">Zeitplan</TableHead>
+            <TableHead className="hidden md:table-cell">Status</TableHead>
+            <TableHead className="hidden md:table-cell text-right">Laeufe</TableHead>
+            <TableHead className="text-right">Aktionen</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {[1, 2, 3].map((i) => (
+            <TableRow key={i}>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="size-2 rounded-full" />
+                  <Skeleton className="h-4 w-36" />
+                </div>
+              </TableCell>
+              <TableCell className="hidden sm:table-cell">
+                <Skeleton className="h-3 w-24" />
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                <Skeleton className="h-5 w-20 rounded" />
+              </TableCell>
+              <TableCell className="hidden md:table-cell text-right">
+                <Skeleton className="h-3 w-8 ml-auto" />
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-1">
+                  <Skeleton className="size-7 rounded" />
+                  <Skeleton className="size-7 rounded" />
+                  <Skeleton className="size-7 rounded" />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
 
@@ -1047,7 +1047,7 @@ export default function RoutinesPage() {
 
   return (
     <div
-      className={`flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full ${
+      className={`flex flex-col gap-6 p-4 sm:p-6 w-full ${
         selectedIds.size > 0 ? "pb-20" : ""
       }`}
     >
@@ -1156,28 +1156,19 @@ export default function RoutinesPage() {
 
         <TabsContent value={filter} className="mt-4">
           {loading ? (
-            <div className="space-y-3">
-              <RoutineSkeleton />
-              <RoutineSkeleton />
-              <RoutineSkeleton />
-            </div>
+            <RoutineSkeleton />
           ) : routines.length === 0 ? (
             <EmptyState onAdd={() => setDialogOpen(true)} />
           ) : (
-            <div className="space-y-3">
-              {routines.map((routine) => (
-                <RoutineCard
-                  key={routine.id}
-                  routine={routine}
-                  onDelete={handleDelete}
-                  onToggle={handleToggle}
-                  onRun={handleRun}
-                  selectionMode={selectionMode}
-                  selected={selectedIds.has(routine.id)}
-                  onSelect={handleSelectId}
-                />
-              ))}
-            </div>
+            <RoutinesTable
+              routines={routines}
+              onDelete={handleDelete}
+              onToggle={handleToggle}
+              onRun={handleRun}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              onSelect={handleSelectId}
+            />
           )}
         </TabsContent>
       </Tabs>

@@ -7,6 +7,8 @@ from models.notification import Notification, NotificationSettings
 from models.skill import SkillConfig, SkillExecution
 from models.integration import IntegrationToken
 from models.telos_snapshot import TelosSnapshot
+from models.mcp_server import McpServer
+from models.api_werkzeug import ApiWerkzeug
 from models.routine import (
     Routine,
     RoutineSkill,
@@ -40,4 +42,6 @@ __all__ = [
     "RoutineWebhook",
     "RoutineTemplate",
     "PushSubscription",
+    "McpServer",
+    "ApiWerkzeug",
 ]

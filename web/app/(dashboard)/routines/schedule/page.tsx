@@ -162,7 +162,7 @@ export default function SchedulePage() {
   const grouped = groupByDay(schedule);
 
   return (
-    <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full">
+    <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
       {/* Header */}
       <div className="flex items-start gap-4">
         <Button

@@ -23,6 +23,13 @@ import {
   Eye,
   Code2,
   Save,
+  Library,
+  Search,
+  Download,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,6 +74,11 @@ import {
   type SkillGenerateMessage,
   type SkillGenerateResponse,
 } from "@/lib/settings-service";
+import {
+  SKILL_PRESETS,
+  SKILL_CATEGORIES,
+  type SkillPreset,
+} from "@/lib/skill-presets";
 
 // ─── Simple Markdown Renderer ────────────────────────────────────────────────
 
@@ -291,11 +303,12 @@ function McpToolSelector({
           ) : (
             <div className="space-y-1.5 pl-5">
               {server.tools.map((tool) => {
-                const toolKey = `mcp__${server.name}__${tool}`;
+                const toolName = typeof tool === "string" ? tool : tool.name;
+                const toolKey = `mcp__${server.name}__${toolName}`;
                 const isChecked = selected.includes(toolKey);
                 return (
                   <label
-                    key={tool}
+                    key={toolName}
                     className="flex items-center gap-2.5 cursor-pointer group"
                   >
                     <input
@@ -305,7 +318,7 @@ function McpToolSelector({
                       className="size-3.5 rounded accent-primary cursor-pointer"
                     />
                     <span className="text-xs font-mono group-hover:text-foreground transition-colors text-muted-foreground">
-                      {tool}
+                      {toolName}
                     </span>
                   </label>
                 );
@@ -914,7 +927,7 @@ function SkillDetailView({
       setServersLoading(true);
       try {
         const data = await settingsService.getWerkzeuge();
-        setServers(data.servers ?? []);
+        setServers(data.werkzeuge ?? []);
       } catch {
         // Non-critical
       } finally {
@@ -1827,6 +1840,129 @@ function SkillChatModal({
   );
 }
 
+// ─── Skill Preset Card ──────────────────────────────────────────────────────
+
+function SkillPresetCard({
+  preset,
+  installed,
+  installing,
+  onInstall,
+}: {
+  preset: SkillPreset;
+  installed: boolean;
+  installing: boolean;
+  onInstall: (preset: SkillPreset) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Card
+      className={`transition-all duration-200 ${
+        installed ? "opacity-60 border-green-800/30" : "hover:border-primary/50 hover:shadow-sm"
+      }`}
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div
+            className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+            onClick={() => setExpanded(!expanded)}
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Zap className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold">{preset.name}</p>
+                {installed && (
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] px-1.5 py-0 h-5 shrink-0 gap-1 border-green-700/50 text-green-400"
+                  >
+                    <Check className="size-2.5" />
+                    Installiert
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                {preset.summary}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant={installed ? "outline" : "default"}
+              disabled={installed || installing}
+              onClick={() => onInstall(preset)}
+              className="gap-1.5"
+            >
+              {installing ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : installed ? (
+                <Check className="size-3.5" />
+              ) : (
+                <Download className="size-3.5" />
+              )}
+              {installing ? "..." : installed ? "Installiert" : "Installieren"}
+            </Button>
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-muted-foreground hover:text-foreground transition-colors p-1"
+            >
+              {expanded ? (
+                <ChevronUp className="size-4" />
+              ) : (
+                <ChevronDown className="size-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      </CardHeader>
+
+      {expanded && (
+        <CardContent className="pt-0 space-y-3">
+          <p className="text-sm text-muted-foreground">{preset.description}</p>
+
+          <div className="flex flex-wrap gap-1.5">
+            {preset.features.map((f) => (
+              <Badge key={f} variant="secondary" className="text-xs">
+                {f}
+              </Badge>
+            ))}
+          </div>
+
+          {preset.parameters && Object.keys(preset.parameters).length > 0 && (
+            <div className="rounded-lg border p-3 space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Parameter</p>
+              {Object.entries(preset.parameters).map(([key, param]) => (
+                <div key={key} className="flex items-center justify-between text-xs">
+                  <span className="font-mono text-muted-foreground">{key}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">{param.description}</span>
+                    <Badge
+                      variant={param.required ? "default" : "secondary"}
+                      className="text-[10px] px-1 py-0"
+                    >
+                      {param.required ? "Pflicht" : "Optional"}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {preset.hint && (
+            <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground">
+              <Info className="size-3.5 shrink-0 mt-0.5" />
+              <span>{preset.hint}</span>
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 // ─── Skills Page ────────────────────────────────────────────────────────────
 
 type PageMode = "list" | "detail" | "create";
@@ -1837,6 +1973,8 @@ export default function SkillsPage() {
   const [mode, setMode] = useState<PageMode>("list");
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [installing, setInstalling] = useState<string | null>(null);
+  const [presetSearch, setPresetSearch] = useState("");
 
   const fetchSkills = useCallback(async () => {
     setLoading(true);
@@ -1882,10 +2020,77 @@ export default function SkillsPage() {
     fetchSkills();
   }
 
+  // Installed skill names for deduplication
+  const installedNames = useMemo(
+    () => new Set(skills.map((s) => s.name.toLowerCase())),
+    [skills]
+  );
+
+  // Filter presets
+  const filteredPresets = useMemo(() => {
+    if (!presetSearch.trim()) return SKILL_PRESETS;
+    const q = presetSearch.toLowerCase();
+    return SKILL_PRESETS.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.summary.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        p.features.some((f) => f.toLowerCase().includes(q))
+    );
+  }, [presetSearch]);
+
+  // Group presets by category
+  const groupedPresets = useMemo(() => {
+    const groups = new Map<string, SkillPreset[]>();
+    for (const preset of filteredPresets) {
+      const list = groups.get(preset.category) || [];
+      list.push(preset);
+      groups.set(preset.category, list);
+    }
+    return groups;
+  }, [filteredPresets]);
+
+  async function handleInstallPreset(preset: SkillPreset) {
+    setInstalling(preset.id);
+    try {
+      const skillMdLines: string[] = [
+        "---",
+        `name: "${preset.name}"`,
+        `description: "${preset.summary}"`,
+      ];
+      if (preset.parameters && Object.keys(preset.parameters).length > 0) {
+        skillMdLines.push("parameters:");
+        for (const [key, param] of Object.entries(preset.parameters)) {
+          skillMdLines.push(`  ${key}:`);
+          skillMdLines.push(`    type: "${param.type}"`);
+          skillMdLines.push(`    required: ${param.required}`);
+          skillMdLines.push(`    description: "${param.description}"`);
+        }
+      }
+      skillMdLines.push("---", "", preset.system_prompt, "");
+
+      await settingsService.createSkill({
+        name: preset.name,
+        description: preset.summary,
+        system_prompt: preset.system_prompt,
+        parameters: preset.parameters,
+        skill_md: skillMdLines.join("\n"),
+      });
+      toast.success(`${preset.name} installiert`);
+      fetchSkills();
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Fehler beim Installieren";
+      toast.error(msg);
+    } finally {
+      setInstalling(null);
+    }
+  }
+
   // Detail view
   if (mode === "detail" && selectedSkillId) {
     return (
-      <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full">
+      <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
         <SkillDetailView
           skillId={selectedSkillId}
           onBack={handleBackToList}
@@ -1898,7 +2103,7 @@ export default function SkillsPage() {
   // Create view
   if (mode === "create") {
     return (
-      <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full">
+      <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
         <SkillCreateView
           onBack={() => setMode("list")}
           onCreated={() => {
@@ -1912,7 +2117,7 @@ export default function SkillsPage() {
 
   // List view
   return (
-    <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full">
+    <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
       {/* Page Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -1949,38 +2154,118 @@ export default function SkillsPage() {
         }}
       />
 
-      {/* Skills List */}
-      {loading ? (
-        <SkillListSkeleton />
-      ) : skills.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-          <div className="rounded-full bg-muted p-6">
-            <Zap className="size-10 text-muted-foreground" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-lg font-semibold">Keine Skills verfuegbar</p>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              Erstelle deinen ersten Custom Skill oder warte, bis PAI-X die
-              Standard-Skills eingerichtet hat.
-            </p>
-          </div>
-          <Button onClick={() => setMode("create")} className="gap-2">
-            <Plus className="size-4" />
-            Skill erstellen
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {skills.map((skill) => (
-            <SkillCard
-              key={skill.id}
-              skill={skill}
-              onSelect={handleSelectSkill}
-              onToggle={handleToggle}
+      {/* Tabs: Bibliothek + Meine Skills */}
+      <Tabs defaultValue="bibliothek">
+        <TabsList>
+          <TabsTrigger value="bibliothek" className="gap-2">
+            <Library className="size-4" />
+            Bibliothek
+          </TabsTrigger>
+          <TabsTrigger value="meine" className="gap-2">
+            <Zap className="size-4" />
+            Meine Skills
+            {skills.length > 0 && (
+              <Badge variant="secondary" className="text-xs ml-1">
+                {skills.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── Bibliothek Tab ── */}
+        <TabsContent value="bibliothek" className="space-y-4 mt-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Skills durchsuchen..."
+              value={presetSearch}
+              onChange={(e) => setPresetSearch(e.target.value)}
+              className="w-full rounded-lg border bg-background px-10 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
-          ))}
-        </div>
-      )}
+            {presetSearch && (
+              <button
+                onClick={() => setPresetSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <XCircle className="size-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Grouped Presets */}
+          {filteredPresets.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="rounded-full bg-muted p-4 mx-auto w-fit mb-3">
+                <Search className="size-8 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Keine Skills gefunden für &quot;{presetSearch}&quot;
+              </p>
+            </div>
+          ) : (
+            Array.from(groupedPresets.entries()).map(([category, presets]) => (
+              <div key={category} className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+                  {category}
+                </h3>
+                {presets.map((preset) => (
+                  <SkillPresetCard
+                    key={preset.id}
+                    preset={preset}
+                    installed={installedNames.has(preset.name.toLowerCase())}
+                    installing={installing === preset.id}
+                    onInstall={handleInstallPreset}
+                  />
+                ))}
+              </div>
+            ))
+          )}
+
+          <div className="flex items-start gap-2 rounded-lg bg-muted/50 border p-3 text-xs text-muted-foreground">
+            <Info className="size-4 shrink-0 mt-0.5" />
+            <span>
+              Installierte Skills erscheinen unter &quot;Meine Skills&quot; und
+              stehen dem Chat-Agenten automatisch zur Verfügung. Du kannst
+              Skills dort weiter konfigurieren.
+            </span>
+          </div>
+        </TabsContent>
+
+        {/* ── Meine Skills Tab ── */}
+        <TabsContent value="meine" className="space-y-3 mt-4">
+          {loading ? (
+            <SkillListSkeleton />
+          ) : skills.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+              <div className="rounded-full bg-muted p-6">
+                <Zap className="size-10 text-muted-foreground" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-lg font-semibold">Keine Skills installiert</p>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Gehe zur Bibliothek und installiere deinen ersten Skill, oder
+                  erstelle einen eigenen.
+                </p>
+              </div>
+              <Button onClick={() => setMode("create")} className="gap-2">
+                <Plus className="size-4" />
+                Skill erstellen
+              </Button>
+            </div>
+          ) : (
+            skills.map((skill) => (
+              <SkillCard
+                key={skill.id}
+                skill={skill}
+                onSelect={handleSelectSkill}
+                onToggle={handleToggle}
+              />
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

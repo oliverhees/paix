@@ -1,5 +1,7 @@
 """Notifications Endpoints — read, manage, and configure notifications."""
 
+import random
+import time as _time
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +15,10 @@ from models.notification import Notification, NotificationSettings
 from models.user import User
 
 router = APIRouter()
+
+# ── Telegram Link Code Store (in-memory, TTL 10 min) ──
+# Maps code → {"user_id": str, "expires": float}
+_telegram_link_codes: dict[str, dict] = {}
 
 
 # ──────────────────────────────────────────────
@@ -250,3 +256,83 @@ async def send_test_notification(
     await db.flush()
 
     return {"message": "Test notification created"}
+
+
+# ──────────────────────────────────────────────
+# Telegram Linking
+# ──────────────────────────────────────────────
+
+
+def _cleanup_expired_codes():
+    """Remove expired link codes."""
+    now = _time.time()
+    expired = [k for k, v in _telegram_link_codes.items() if v["expires"] < now]
+    for k in expired:
+        del _telegram_link_codes[k]
+
+
+def generate_link_code(user_id: str) -> str:
+    """Generate a 6-digit link code for a user, valid for 10 minutes."""
+    _cleanup_expired_codes()
+    # Remove any existing codes for this user
+    existing = [k for k, v in _telegram_link_codes.items() if v["user_id"] == user_id]
+    for k in existing:
+        del _telegram_link_codes[k]
+    # Generate new code
+    code = f"{random.randint(100000, 999999)}"
+    _telegram_link_codes[code] = {
+        "user_id": user_id,
+        "expires": _time.time() + 600,  # 10 minutes
+    }
+    return code
+
+
+def validate_link_code(code: str) -> str | None:
+    """Validate a link code. Returns user_id if valid, None if expired/invalid."""
+    _cleanup_expired_codes()
+    entry = _telegram_link_codes.get(code)
+    if entry is None:
+        return None
+    # Single-use: remove after validation
+    del _telegram_link_codes[code]
+    return entry["user_id"]
+
+
+@router.post("/notifications/telegram/link")
+async def create_telegram_link(
+    user: User = Depends(get_current_user),
+):
+    """Generate a 6-digit code to link Telegram account."""
+    from config import settings
+    code = generate_link_code(str(user.id))
+    bot_name = ""
+    if settings.telegram_bot_token:
+        # Try to get bot username from token
+        try:
+            from services.telegram_service import telegram_service
+            bot_info = await telegram_service.get_bot_info()
+            bot_name = bot_info.get("username", "")
+        except Exception:
+            pass
+    return {
+        "code": code,
+        "expires_in": 600,
+        "bot_name": bot_name,
+        "bot_link": f"https://t.me/{bot_name}" if bot_name else "",
+        "instruction": f"Sende /start {code} an den Bot",
+    }
+
+
+@router.delete("/notifications/telegram/link")
+async def disconnect_telegram(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove Telegram connection for the current user."""
+    await db.execute(
+        update(NotificationSettings)
+        .where(NotificationSettings.user_id == user.id)
+        .values(telegram_chat_id=None)
+    )
+    await db.flush()
+    return {"message": "Telegram-Verknüpfung getrennt"}

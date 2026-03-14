@@ -120,6 +120,20 @@ class TelegramService:
         except Exception:
             return None
 
+    async def get_bot_info(self) -> dict[str, Any]:
+        """Get bot info (username, name) from Telegram API."""
+        if not self.bot_token:
+            return {}
+        client = await self._get_client()
+        try:
+            response = await client.get(f"{self.base_url}/getMe")
+            data = response.json()
+            if data.get("ok"):
+                return data["result"]
+            return {}
+        except Exception:
+            return {}
+
     async def close(self) -> None:
         if self._client and not self._client.is_closed:
             await self._client.aclose()

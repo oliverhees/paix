@@ -40,6 +40,61 @@ async def telegram_webhook(request: Request):
 
     chat_id = str(message["chat"]["id"])
 
+    # Handle /start CODE — Telegram linking flow
+    if text.startswith("/start "):
+        code = text.split(" ", 1)[1].strip()
+        if code and code.isdigit() and len(code) == 6:
+            from routers.notifications import validate_link_code
+            user_id_from_code = validate_link_code(code)
+            if user_id_from_code:
+                async with async_session() as db:
+                    import uuid as _uuid
+                    from sqlalchemy import update as sql_update
+                    # Ensure notification_settings row exists
+                    result = await db.execute(
+                        select(NotificationSettings).where(
+                            NotificationSettings.user_id == _uuid.UUID(user_id_from_code)
+                        )
+                    )
+                    row = result.scalar_one_or_none()
+                    if row is None:
+                        row = NotificationSettings(
+                            user_id=_uuid.UUID(user_id_from_code),
+                            telegram_chat_id=chat_id,
+                        )
+                        db.add(row)
+                    else:
+                        await db.execute(
+                            sql_update(NotificationSettings)
+                            .where(NotificationSettings.user_id == _uuid.UUID(user_id_from_code))
+                            .values(telegram_chat_id=chat_id)
+                        )
+                    await db.commit()
+
+                from services.telegram_service import telegram_service
+                await telegram_service.send_message(
+                    chat_id,
+                    "Erfolgreich verknuepft! Du erhaeltst jetzt Benachrichtigungen von PAI-X hier.",
+                )
+                return {"ok": True}
+            else:
+                from services.telegram_service import telegram_service
+                await telegram_service.send_message(
+                    chat_id,
+                    "Ungueltiger oder abgelaufener Code. Bitte generiere einen neuen in den PAI-X Einstellungen.",
+                )
+                return {"ok": True}
+    elif text == "/start":
+        from services.telegram_service import telegram_service
+        await telegram_service.send_message(
+            chat_id,
+            "Willkommen bei PAI-X!\n\n"
+            "Um deinen Account zu verbinden, gehe zu PAI-X Einstellungen > Benachrichtigungen "
+            "und klicke auf 'Mit Telegram verbinden'. Du erhaeltst dann einen 6-stelligen Code.\n\n"
+            "Sende: /start DEINCODE",
+        )
+        return {"ok": True}
+
     # Find user by telegram_chat_id
     async with async_session() as db:
         result = await db.execute(

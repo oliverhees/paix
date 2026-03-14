@@ -41,20 +41,22 @@ import {
   Eye,
   EyeOff,
   Trash2,
-  Wrench,
-  Plus,
   ChevronDown,
   ChevronUp,
   Bot,
   Brain,
   Clock,
   Zap,
+  FolderOpen,
+  MessageCircle,
+  Copy,
+  Link2,
+  Unlink,
+  ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 import {
   settingsService,
-  type McpServer,
-  type McpServerRequest,
-  type McpServerUpdateRequest,
 } from "@/lib/settings-service";
 import { useTheme } from "next-themes";
 import { useSettingsStore } from "@/lib/stores/settings-store";
@@ -185,6 +187,146 @@ function ProfileSection() {
 
 /* ── Notifications Section ────────────────────────────── */
 
+function TelegramConnectCard({ chatId, onRefresh }: { chatId: string | null; onRefresh: () => void }) {
+  const [linking, setLinking] = useState(false);
+  const [linkData, setLinkData] = useState<{
+    code: string;
+    bot_link: string;
+    bot_name: string;
+  } | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const handleGenerateCode = async () => {
+    setLinking(true);
+    try {
+      const data = await settingsService.createTelegramLink();
+      setLinkData({ code: data.code, bot_link: data.bot_link, bot_name: data.bot_name });
+    } catch {
+      toast.error("Code konnte nicht generiert werden");
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    setDisconnecting(true);
+    try {
+      await settingsService.disconnectTelegram();
+      toast.success("Telegram-Verknüpfung getrennt");
+      setLinkData(null);
+      onRefresh();
+    } catch {
+      toast.error("Fehler beim Trennen");
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const copyCode = () => {
+    if (linkData?.code) {
+      navigator.clipboard.writeText(`/start ${linkData.code}`);
+      toast.success("Code kopiert");
+    }
+  };
+
+  const isConnected = !!chatId;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <MessageCircle className="h-5 w-5" />
+          Telegram
+          {isConnected ? (
+            <Badge variant="default" className="bg-green-600">Verbunden</Badge>
+          ) : (
+            <Badge variant="secondary">Nicht verbunden</Badge>
+          )}
+        </CardTitle>
+        <CardDescription>
+          Verbinde deinen Telegram-Account um Benachrichtigungen und Chat-Nachrichten zu empfangen.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isConnected ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950">
+              <Check className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-green-800 dark:text-green-200">
+                Telegram ist verbunden (Chat-ID: {chatId})
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="gap-2 text-red-600 hover:text-red-700"
+            >
+              {disconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink className="h-4 w-4" />}
+              Verknüpfung trennen
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {!linkData ? (
+              <Button onClick={handleGenerateCode} disabled={linking} className="gap-2">
+                {linking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                Mit Telegram verbinden
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+                  <p className="text-sm font-medium">So verbindest du:</p>
+                  <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+                    <li>
+                      Oeffne den Bot:{" "}
+                      {linkData.bot_link ? (
+                        <a
+                          href={linkData.bot_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary underline inline-flex items-center gap-1"
+                        >
+                          @{linkData.bot_name} <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">Bot-Token nicht konfiguriert</span>
+                      )}
+                    </li>
+                    <li>Sende diese Nachricht an den Bot:</li>
+                  </ol>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded bg-background px-3 py-2 font-mono text-sm border">
+                      /start {linkData.code}
+                    </code>
+                    <Button variant="outline" size="sm" onClick={copyCode} className="gap-1">
+                      <Copy className="h-3 w-3" />
+                      Kopieren
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Code ist 10 Minuten gueltig. Nach dem Senden wird dein Account automatisch verknuepft.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={onRefresh} className="gap-1">
+                    <RefreshCw className="h-3 w-3" />
+                    Status pruefen
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setLinkData(null)}>
+                    Abbrechen
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function NotificationsSection() {
   const {
     notificationSettings,
@@ -274,6 +416,12 @@ function NotificationsSection() {
 
   return (
     <div className="space-y-4">
+      {/* Telegram Connection */}
+      <TelegramConnectCard
+        chatId={notificationSettings.telegram_chat_id}
+        onRefresh={fetchNotificationSettings}
+      />
+
       {/* Trigger Settings */}
       <Card>
         <CardHeader>
@@ -538,7 +686,7 @@ function AboutSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Ueber PAI-X</CardTitle>
+        <CardTitle>Über PAI-X</CardTitle>
         <CardDescription>
           Dein Personal AI Assistant
         </CardDescription>
@@ -725,7 +873,7 @@ function APIKeysSection() {
       );
       toast.success("API-Schluessel geloescht");
     } catch {
-      toast.error("Fehler beim Loeschen des API-Schluessels");
+      toast.error("Fehler beim Löschen des API-Schluessels");
       setProviders((prev) =>
         prev.map((p) => (p.provider === providerName ? { ...p, deleting: false } : p))
       );
@@ -994,7 +1142,7 @@ function APIKeysSection() {
                   ) : (
                     <Trash2 className="h-3.5 w-3.5" />
                   )}
-                  Loeschen
+                  Löschen
                 </Button>
               )}
             </div>
@@ -1034,550 +1182,7 @@ function APIKeysSection() {
   );
 }
 
-/* ── Werkzeuge Section ────────────────────────────────── */
-
-type TransportType = "stdio" | "sse" | "streamable_http";
-
-interface WerkzeugFormState {
-  name: string;
-  description: string;
-  transport_type: TransportType;
-  command: string;
-  args: string;
-  url: string;
-  tools: string;
-}
-
-const EMPTY_FORM: WerkzeugFormState = {
-  name: "",
-  description: "",
-  transport_type: "stdio",
-  command: "",
-  args: "",
-  url: "",
-  tools: "",
-};
-
-function WerkzeugForm({
-  initial,
-  onSave,
-  onCancel,
-  saving,
-}: {
-  initial?: WerkzeugFormState;
-  onSave: (data: McpServerRequest) => Promise<void>;
-  onCancel: () => void;
-  saving: boolean;
-}) {
-  const [form, setForm] = useState<WerkzeugFormState>(
-    initial ?? EMPTY_FORM
-  );
-
-  function set<K extends keyof WerkzeugFormState>(
-    key: K,
-    value: WerkzeugFormState[K]
-  ) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.name.trim()) return;
-
-    const config: Record<string, unknown> = {};
-    if (form.transport_type === "stdio") {
-      if (form.command.trim()) config["command"] = form.command.trim();
-      if (form.args.trim()) {
-        config["args"] = form.args
-          .split(",")
-          .map((a) => a.trim())
-          .filter(Boolean);
-      }
-    } else {
-      if (form.url.trim()) config["url"] = form.url.trim();
-    }
-
-    const tools = form.tools
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-
-    await onSave({
-      name: form.name.trim(),
-      description: form.description.trim() || undefined,
-      transport_type: form.transport_type,
-      config: Object.keys(config).length > 0 ? config : undefined,
-      tools: tools.length > 0 ? tools : undefined,
-    });
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="wz-name">
-            Name <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="wz-name"
-            placeholder="z.B. github"
-            value={form.name}
-            onChange={(e) => set("name", e.target.value)}
-            disabled={saving}
-            required
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="wz-transport">Transport</Label>
-          <Select
-            value={form.transport_type}
-            onValueChange={(v) => set("transport_type", v as TransportType)}
-            disabled={saving}
-          >
-            <SelectTrigger id="wz-transport">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="stdio">stdio</SelectItem>
-              <SelectItem value="sse">sse</SelectItem>
-              <SelectItem value="streamable_http">streamable_http</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="wz-desc">Beschreibung</Label>
-        <Input
-          id="wz-desc"
-          placeholder="Kurze Beschreibung des MCP-Servers"
-          value={form.description}
-          onChange={(e) => set("description", e.target.value)}
-          disabled={saving}
-        />
-      </div>
-
-      {form.transport_type === "stdio" ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="wz-cmd">Befehl</Label>
-            <Input
-              id="wz-cmd"
-              placeholder="z.B. npx"
-              value={form.command}
-              onChange={(e) => set("command", e.target.value)}
-              disabled={saving}
-              className="font-mono text-xs"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="wz-args">Argumente (kommagetrennt)</Label>
-            <Input
-              id="wz-args"
-              placeholder="-y, @github/mcp-server"
-              value={form.args}
-              onChange={(e) => set("args", e.target.value)}
-              disabled={saving}
-              className="font-mono text-xs"
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          <Label htmlFor="wz-url">URL</Label>
-          <Input
-            id="wz-url"
-            placeholder="https://mcp.example.com/sse"
-            value={form.url}
-            onChange={(e) => set("url", e.target.value)}
-            disabled={saving}
-            className="font-mono text-xs"
-            type="url"
-          />
-        </div>
-      )}
-
-      <div className="space-y-1.5">
-        <Label htmlFor="wz-tools">
-          Tools{" "}
-          <span className="text-muted-foreground text-xs">(kommagetrennt)</span>
-        </Label>
-        <Input
-          id="wz-tools"
-          placeholder="search_code, create_issue, list_repos"
-          value={form.tools}
-          onChange={(e) => set("tools", e.target.value)}
-          disabled={saving}
-          className="font-mono text-xs"
-        />
-      </div>
-
-      <div className="flex gap-2 pt-1">
-        <Button
-          type="submit"
-          size="sm"
-          disabled={saving || !form.name.trim()}
-          className="gap-1.5"
-        >
-          {saving ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Save className="size-3.5" />
-          )}
-          Speichern
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={onCancel}
-          disabled={saving}
-        >
-          Abbrechen
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-function WerkzeugCard({
-  server,
-  onToggle,
-  onDelete,
-  onUpdate,
-}: {
-  server: McpServer;
-  onToggle: (id: string, active: boolean) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-  onUpdate: (id: string, data: McpServerUpdateRequest) => Promise<void>;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [toggling, setToggling] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const existingConfig = server.config as Record<string, unknown>;
-
-  const initialForm: WerkzeugFormState = {
-    name: server.name,
-    description: server.description,
-    transport_type: server.transport_type,
-    command: typeof existingConfig?.command === "string" ? existingConfig.command : "",
-    args: Array.isArray(existingConfig?.args)
-      ? (existingConfig.args as string[]).join(", ")
-      : "",
-    url: typeof existingConfig?.url === "string" ? existingConfig.url : "",
-    tools: server.tools.join(", "),
-  };
-
-  async function handleToggle() {
-    setToggling(true);
-    try {
-      await onToggle(server.id, !server.active);
-    } finally {
-      setToggling(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (
-      !window.confirm(
-        `MCP-Server "${server.name}" wirklich loeschen?`
-      )
-    )
-      return;
-    setDeleting(true);
-    try {
-      await onDelete(server.id);
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  async function handleSave(data: McpServerRequest) {
-    setSaving(true);
-    try {
-      await onUpdate(server.id, data);
-      setEditing(false);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="rounded-lg border">
-      {/* Card Header */}
-      <div
-        className="flex items-center justify-between p-4 cursor-pointer"
-        onClick={() => !editing && setExpanded((v) => !v)}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Wrench className="size-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-semibold truncate">{server.name}</p>
-              <Badge variant="outline" className="text-xs">
-                {server.transport_type}
-              </Badge>
-              {server.tools.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  {server.tools.length} Tools
-                </Badge>
-              )}
-            </div>
-            {server.description && (
-              <p className="text-xs text-muted-foreground truncate">
-                {server.description}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 ml-2">
-          <Switch
-            checked={server.active}
-            onCheckedChange={handleToggle}
-            disabled={toggling}
-            onClick={(e) => e.stopPropagation()}
-          />
-          {expanded ? (
-            <ChevronUp className="size-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="size-4 text-muted-foreground" />
-          )}
-        </div>
-      </div>
-
-      {/* Expanded Content */}
-      {expanded && (
-        <div className="border-t p-4 space-y-4">
-          {editing ? (
-            <WerkzeugForm
-              initial={initialForm}
-              onSave={handleSave}
-              onCancel={() => setEditing(false)}
-              saving={saving}
-            />
-          ) : (
-            <>
-              {/* Tools */}
-              {server.tools.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1.5">
-                    Tools
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {server.tools.map((t) => (
-                      <Badge
-                        key={t}
-                        variant="secondary"
-                        className="text-xs font-mono"
-                      >
-                        {t}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Config preview */}
-              {Object.keys(server.config).length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1.5">
-                    Konfiguration
-                  </p>
-                  <pre className="text-xs bg-muted rounded-lg p-3 overflow-x-auto">
-                    {JSON.stringify(server.config, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setEditing(true)}
-                >
-                  Bearbeiten
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="gap-1.5 text-destructive hover:text-destructive"
-                >
-                  {deleting ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Trash2 className="size-3.5" />
-                  )}
-                  Loeschen
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function WerkzeugeSection() {
-  const [servers, setServers] = useState<McpServer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [creating, setCreating] = useState(false);
-
-  const fetchServers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await settingsService.getWerkzeuge();
-      setServers(data.servers ?? []);
-    } catch {
-      toast.error("MCP-Server konnten nicht geladen werden");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchServers();
-  }, [fetchServers]);
-
-  async function handleCreate(data: McpServerRequest) {
-    setCreating(true);
-    try {
-      const result = await settingsService.createWerkzeug(data);
-      setServers((prev) => [...prev, result.server]);
-      setShowForm(false);
-      toast.success("MCP-Server registriert");
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Fehler beim Erstellen";
-      toast.error(msg);
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function handleToggle(id: string, active: boolean) {
-    try {
-      const result = await settingsService.updateWerkzeug(id, { active });
-      setServers((prev) =>
-        prev.map((s) => (s.id === id ? result.server : s))
-      );
-      toast.success(active ? "Werkzeug aktiviert" : "Werkzeug deaktiviert");
-    } catch {
-      toast.error("Fehler beim Aktualisieren");
-    }
-  }
-
-  async function handleDelete(id: string) {
-    try {
-      await settingsService.deleteWerkzeug(id);
-      setServers((prev) => prev.filter((s) => s.id !== id));
-      toast.success("MCP-Server entfernt");
-    } catch {
-      toast.error("Fehler beim Loeschen");
-    }
-  }
-
-  async function handleUpdate(id: string, data: McpServerUpdateRequest) {
-    try {
-      const result = await settingsService.updateWerkzeug(id, data);
-      setServers((prev) =>
-        prev.map((s) => (s.id === id ? result.server : s))
-      );
-      toast.success("MCP-Server aktualisiert");
-    } catch {
-      toast.error("Fehler beim Aktualisieren");
-    }
-  }
-
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Header Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <CardTitle>MCP-Server (Werkzeuge)</CardTitle>
-              <CardDescription>
-                Registriere und verwalte Model Context Protocol Server. Tools
-                dieser Server koennen Skills zugewiesen werden.
-              </CardDescription>
-            </div>
-            <Button
-              onClick={() => setShowForm((v) => !v)}
-              className="gap-2 shrink-0"
-              variant={showForm ? "outline" : "default"}
-            >
-              <Plus className="h-4 w-4" />
-              Hinzufuegen
-            </Button>
-          </div>
-        </CardHeader>
-
-        {showForm && (
-          <CardContent className="border-t pt-4">
-            <WerkzeugForm
-              onSave={handleCreate}
-              onCancel={() => setShowForm(false)}
-              saving={creating}
-            />
-          </CardContent>
-        )}
-      </Card>
-
-      {/* Server List */}
-      {servers.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center gap-3 rounded-lg border border-dashed">
-          <Wrench className="size-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Noch keine MCP-Server registriert. Fuege deinen ersten Server
-            hinzu, um dessen Tools in Skills zu verwenden.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {servers.map((server) => (
-            <WerkzeugCard
-              key={server.id}
-              server={server}
-              onToggle={handleToggle}
-              onDelete={handleDelete}
-              onUpdate={handleUpdate}
-            />
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
-        <Info className="mt-0.5 h-4 w-4 shrink-0" />
-        <p>
-          MCP-Server werden im Format{" "}
-          <span className="font-mono">mcp__servername__toolname</span> in Skills
-          referenziert. Stelle sicher, dass PAI-X Zugriff auf den angegebenen
-          Befehl oder die URL hat.
-        </p>
-      </div>
-    </div>
-  );
-}
+/* ── Werkzeuge Section — moved to /werkzeuge ────────── */
 
 /* ── Persona Section ──────────────────────────────────── */
 
@@ -1697,6 +1302,278 @@ function formatValue(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+interface KnowledgeGraphStatus {
+  connected: boolean;
+  error: string | null;
+  backend: string;
+  host: string;
+  port: number;
+}
+
+function KnowledgeGraphCard() {
+  const [status, setStatus] = useState<KnowledgeGraphStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStatus = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.get<KnowledgeGraphStatus>("/memory/status");
+      setStatus(data);
+    } catch {
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="size-5" />
+              Knowledge Graph
+            </CardTitle>
+            <CardDescription>
+              Automatisches Lernen aus Gesprächen — Entitäten, Beziehungen und Fakten werden per NLP extrahiert und gespeichert.
+            </CardDescription>
+          </div>
+          {!loading && (
+            <Badge variant={status?.connected ? "default" : "secondary"} className={status?.connected ? "bg-green-600" : ""}>
+              {status?.connected ? "Verbunden" : "Getrennt"}
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Status wird geprüft...
+          </div>
+        ) : status?.connected ? (
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Backend</p>
+              <p className="font-medium">{status.backend}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Server</p>
+              <p className="font-medium">{status.host}:{status.port}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Der Knowledge Graph ist nicht verbunden. Das automatische Lernen ist deaktiviert, aber Chat und TELOS funktionieren weiterhin.
+            </p>
+            {status?.error && (
+              <p className="text-xs text-destructive bg-destructive/10 rounded px-3 py-2">
+                {status.error}
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ── Storage Section ─────────────────────────────── */
+
+function StorageSection() {
+  const [config, setConfig] = useState({
+    endpoint_url: "",
+    access_key: "",
+    secret_key: "",
+    bucket_name: "paix-files",
+    region: "fsn1",
+  });
+  const [configured, setConfigured] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    connected: boolean;
+    error?: string | null;
+  } | null>(null);
+  const [showSecret, setShowSecret] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { storageService } = await import("@/lib/storage-service");
+        const cfg = await storageService.getConfig();
+        setConfig({
+          endpoint_url: cfg.endpoint_url,
+          access_key: cfg.access_key,
+          secret_key: cfg.secret_key,
+          bucket_name: cfg.bucket_name,
+          region: cfg.region,
+        });
+        setConfigured(cfg.configured);
+      } catch {
+        // not configured yet
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { storageService } = await import("@/lib/storage-service");
+      const result = await storageService.updateConfig(config);
+      setConfigured(result.configured);
+      toast.success("Speicher-Konfiguration gespeichert");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Fehler beim Speichern");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const { storageService } = await import("@/lib/storage-service");
+      const result = await storageService.testConnection();
+      setTestResult(result);
+    } catch (e: unknown) {
+      setTestResult({ connected: false, error: e instanceof Error ? e.message : "Verbindung fehlgeschlagen" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Objektspeicher (S3)
+          {configured ? (
+            <Badge variant="default" className="bg-green-600">Verbunden</Badge>
+          ) : (
+            <Badge variant="secondary">Nicht konfiguriert</Badge>
+          )}
+        </CardTitle>
+        <CardDescription>
+          S3-kompatibler Objektspeicher für Dateien (z.B. Hetzner Object Storage, AWS S3, MinIO).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="s3-endpoint">Endpoint URL</Label>
+            <Input
+              id="s3-endpoint"
+              placeholder="https://fsn1.your-objectstorage.com"
+              value={config.endpoint_url}
+              onChange={(e) => setConfig((c) => ({ ...c, endpoint_url: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="s3-access-key">Access Key</Label>
+            <Input
+              id="s3-access-key"
+              placeholder="Dein Access Key"
+              value={config.access_key}
+              onChange={(e) => setConfig((c) => ({ ...c, access_key: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="s3-secret-key">Secret Key</Label>
+            <div className="relative">
+              <Input
+                id="s3-secret-key"
+                type={showSecret ? "text" : "password"}
+                placeholder="Dein Secret Key"
+                value={config.secret_key}
+                onChange={(e) => setConfig((c) => ({ ...c, secret_key: e.target.value }))}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3"
+                onClick={() => setShowSecret(!showSecret)}
+              >
+                {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="s3-bucket">Bucket Name</Label>
+            <Input
+              id="s3-bucket"
+              placeholder="paix-files"
+              value={config.bucket_name}
+              onChange={(e) => setConfig((c) => ({ ...c, bucket_name: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="s3-region">Region</Label>
+            <Input
+              id="s3-region"
+              placeholder="fsn1"
+              value={config.region}
+              onChange={(e) => setConfig((c) => ({ ...c, region: e.target.value }))}
+            />
+          </div>
+        </div>
+
+        {testResult && (
+          <div className={`rounded-md px-3 py-2 text-sm ${
+            testResult.connected
+              ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"
+              : "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200"
+          }`}>
+            {testResult.connected ? (
+              <span className="flex items-center gap-2">
+                <Check className="h-4 w-4" /> Verbindung erfolgreich
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <X className="h-4 w-4" /> {testResult.error || "Verbindung fehlgeschlagen"}
+              </span>
+            )}
+          </div>
+        )}
+
+        <Separator />
+
+        <div className="flex gap-2">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Speichern
+          </Button>
+          <Button variant="outline" onClick={handleTest} disabled={testing}>
+            {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+            Verbindung testen
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AgentMemorySection() {
   const [entries, setEntries] = useState<AgentStateEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1725,9 +1602,9 @@ function AgentMemorySection() {
     try {
       await api.delete(`/agent-state/${encodeURIComponent(key)}`);
       setEntries((prev) => prev.filter((e) => e.key !== key));
-      toast.success("Erinnerung geloescht");
+      toast.success("Erinnerung gelöscht");
     } catch {
-      toast.error("Fehler beim Loeschen");
+      toast.error("Fehler beim Löschen");
     } finally {
       setDeletingKeys((prev) => {
         const next = new Set(prev);
@@ -1738,7 +1615,7 @@ function AgentMemorySection() {
   }, []);
 
   const handleClearAll = useCallback(async () => {
-    if (!window.confirm("Alle Erinnerungen wirklich loeschen?")) return;
+    if (!window.confirm("Alle Erinnerungen wirklich löschen?")) return;
     setClearingAll(true);
     try {
       await Promise.all(
@@ -1747,9 +1624,9 @@ function AgentMemorySection() {
         )
       );
       setEntries([]);
-      toast.success("Alle Erinnerungen geloescht");
+      toast.success("Alle Erinnerungen gelöscht");
     } catch {
-      toast.error("Fehler beim Loeschen aller Erinnerungen");
+      toast.error("Fehler beim Löschen aller Erinnerungen");
       await fetchEntries();
     } finally {
       setClearingAll(false);
@@ -1780,12 +1657,15 @@ function AgentMemorySection() {
 
   return (
     <div className="space-y-4">
+      {/* Knowledge Graph Status */}
+      <KnowledgeGraphCard />
+
       {/* Header Card */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <CardTitle>Agent-Gedaechtnis</CardTitle>
+              <CardTitle>Agent-Gedächtnis</CardTitle>
               <CardDescription>
                 Gespeicherte Erinnerungen und Kontext deines Assistenten
               </CardDescription>
@@ -1803,7 +1683,7 @@ function AgentMemorySection() {
                 ) : (
                   <Trash2 className="h-4 w-4" />
                 )}
-                Alle loeschen
+                Alle löschen
               </Button>
             )}
           </div>
@@ -1906,7 +1786,7 @@ function AgentMemorySection() {
                       ) : (
                         <Trash2 className="h-3.5 w-3.5" />
                       )}
-                      Loeschen
+                      Löschen
                     </Button>
                   </div>
                 </CardContent>
@@ -1958,17 +1838,18 @@ export default function SettingsPage() {
             <Key className="h-4 w-4" />
             KI-Modelle
           </TabsTrigger>
-          <TabsTrigger value="werkzeuge" className="gap-2">
-            <Wrench className="h-4 w-4" />
-            Werkzeuge
+          <TabsTrigger value="speicher" className="gap-2">
+            <FolderOpen className="h-4 w-4" />
+            Speicher
           </TabsTrigger>
+          {/* Werkzeuge has its own page now → /werkzeuge */}
           <TabsTrigger value="gedaechtnis" className="gap-2">
             <Brain className="h-4 w-4" />
-            Gedaechtnis
+            Gedächtnis
           </TabsTrigger>
           <TabsTrigger value="about" className="gap-2">
             <Info className="h-4 w-4" />
-            Ueber PAI-X
+            Über PAI-X
           </TabsTrigger>
         </TabsList>
 
@@ -2002,9 +1883,11 @@ export default function SettingsPage() {
           <APIKeysSection />
         </TabsContent>
 
-        {/* Werkzeuge */}
-        <TabsContent value="werkzeuge">
-          <WerkzeugeSection />
+        {/* Werkzeuge — moved to /werkzeuge */}
+
+        {/* Storage */}
+        <TabsContent value="speicher">
+          <StorageSection />
         </TabsContent>
 
         {/* Agent Memory */}

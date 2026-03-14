@@ -178,7 +178,7 @@ async function copyToClipboard(text: string) {
 
 function RunDetailSkeleton() {
   return (
-    <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full">
+    <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
       {/* Header */}
       <div className="flex items-start gap-3">
         <Skeleton className="h-9 w-9 rounded-md shrink-0" />
@@ -382,7 +382,7 @@ export default function RunDetailPage() {
   const isFailed = run.status === "failed";
 
   return (
-    <div className="flex flex-col gap-6 p-4 sm:p-6 max-w-3xl mx-auto w-full">
+    <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
 
       {/* ─ Header ─ */}
       <div className="flex items-start gap-3">

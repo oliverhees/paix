@@ -8,8 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from models.database import init_db, close_db
 from routers import health, chat, calendar, telos, memory, models
-from routers import auth, skills, notifications, internal, integrations, reminders, werkzeuge, routines, telegram
-from routers import agent_state
+from routers import auth, skills, notifications, internal, integrations, reminders, werkzeuge, api_werkzeuge, routines, telegram
+from routers import agent_state, storage
 from routers import claude_oauth
 from services.graphiti_service import graphiti_service
 from services.llm_service import llm_service
@@ -25,7 +25,16 @@ async def lifespan(app: FastAPI):
     start_scheduler()
     routine_scheduler.init_scheduler(scheduler)
     await routine_scheduler.load_all_jobs()
-    # Graphiti service uses lazy client init — no explicit startup needed
+    # Initialize Knowledge Graph (non-blocking — graceful fallback if FalkorDB unavailable)
+    kg_ok = await graphiti_service.init()
+    if kg_ok:
+        import logging
+        logging.getLogger(__name__).info("Knowledge Graph (Graphiti) connected")
+    else:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Knowledge Graph not available: %s", graphiti_service.init_error
+        )
     yield
     # Shutdown
     stop_scheduler()
@@ -77,8 +86,10 @@ app.include_router(notifications.router, prefix="/api/v1", tags=["notifications"
 app.include_router(integrations.router, prefix="/api/v1", tags=["integrations"])
 app.include_router(reminders.router, prefix="/api/v1", tags=["reminders"])
 app.include_router(werkzeuge.router, prefix="/api/v1", tags=["werkzeuge"])
+app.include_router(api_werkzeuge.router, prefix="/api/v1", tags=["api-werkzeuge"])
 app.include_router(routines.router, prefix="/api/v1", tags=["routines"])
 app.include_router(agent_state.router, prefix="/api/v1", tags=["agent-state"])
+app.include_router(storage.router, prefix="/api/v1", tags=["storage"])
 
 # Telegram webhook (public — Telegram verifies via bot token)
 app.include_router(telegram.router, prefix="/api/v1", tags=["telegram"])

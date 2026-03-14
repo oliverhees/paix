@@ -40,7 +40,7 @@ export default async function DashboardLayout({
         <SidebarInset>
           <SiteHeader />
           <div className="bg-muted/40 flex flex-1 flex-col">
-            <div className="@container/main p-(--content-padding)">
+            <div className="@container/main p-(--content-padding) content-area">
               {children}
             </div>
           </div>
