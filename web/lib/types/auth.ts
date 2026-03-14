@@ -50,6 +50,9 @@ export interface UserMeResponse {
   created_at: string | null;
   persona_name?: string | null;
   persona_prompt?: string | null;
+  persona_personality?: string | null;
+  persona_about_user?: string | null;
+  persona_communication?: string | null;
 }
 
 // ─── Agent State ───

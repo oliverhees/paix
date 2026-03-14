@@ -110,7 +110,19 @@ class ChatEngine:
         persona_name = user.persona_name or "PAI-X"
         user_id = str(user.id)
 
-        if user.persona_prompt:
+        # Structured persona sections
+        sections = []
+        if user.persona_personality:
+            sections.append(f"## Persoenlichkeit\n{user.persona_personality}")
+        if user.persona_about_user:
+            sections.append(f"## Ueber den Nutzer\n{user.persona_about_user}")
+        if user.persona_communication:
+            sections.append(f"## Kommunikationsstil\n{user.persona_communication}")
+
+        if sections:
+            base_persona = f"Du bist {persona_name}.\n\n" + "\n\n".join(sections) + "\n\n"
+        elif user.persona_prompt:
+            # Fallback to legacy free-text field
             base_persona = user.persona_prompt + "\n\n"
         else:
             base_persona = (

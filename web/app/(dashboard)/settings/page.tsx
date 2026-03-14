@@ -1189,7 +1189,11 @@ function APIKeysSection() {
 function PersonaSection() {
   const { profile, profileLoading, fetchProfile } = useSettingsStore();
   const [personaName, setPersonaName] = useState("");
+  const [personaPersonality, setPersonaPersonality] = useState("");
+  const [personaAboutUser, setPersonaAboutUser] = useState("");
+  const [personaCommunication, setPersonaCommunication] = useState("");
   const [personaPrompt, setPersonaPrompt] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -1200,7 +1204,19 @@ function PersonaSection() {
   useEffect(() => {
     if (profile) {
       setPersonaName(profile.persona_name ?? "");
+      setPersonaPersonality(profile.persona_personality ?? "");
+      setPersonaAboutUser(profile.persona_about_user ?? "");
+      setPersonaCommunication(profile.persona_communication ?? "");
       setPersonaPrompt(profile.persona_prompt ?? "");
+      // Auto-expand advanced section if legacy prompt is set but structured fields are empty
+      if (
+        profile.persona_prompt &&
+        !profile.persona_personality &&
+        !profile.persona_about_user &&
+        !profile.persona_communication
+      ) {
+        setAdvancedOpen(true);
+      }
     }
   }, [profile]);
 
@@ -1209,6 +1225,9 @@ function PersonaSection() {
     try {
       await api.put("/auth/me", {
         persona_name: personaName || null,
+        persona_personality: personaPersonality || null,
+        persona_about_user: personaAboutUser || null,
+        persona_communication: personaCommunication || null,
         persona_prompt: personaPrompt || null,
       });
       toast.success("Persona gespeichert");
@@ -1218,7 +1237,7 @@ function PersonaSection() {
     } finally {
       setSaving(false);
     }
-  }, [personaName, personaPrompt]);
+  }, [personaName, personaPersonality, personaAboutUser, personaCommunication, personaPrompt]);
 
   if (profileLoading) {
     return (
@@ -1238,7 +1257,7 @@ function PersonaSection() {
           Passe die Persoenlichkeit deines KI-Assistenten an.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="persona-name">Name des Assistenten</Label>
           <Input
@@ -1252,25 +1271,94 @@ function PersonaSection() {
           />
         </div>
 
+        <Separator />
+
         <div className="space-y-2">
-          <Label htmlFor="persona-prompt">Benutzerdefinierte Anweisungen</Label>
+          <Label htmlFor="persona-personality">Persoenlichkeit</Label>
           <Textarea
-            id="persona-prompt"
-            placeholder="z.B. 'Du bist ein freundlicher Assistent namens Luna, der formell auf Deutsch antwortet...'"
-            value={personaPrompt}
+            id="persona-personality"
+            placeholder="Freundlich und direkt. Nutze gelegentlich Humor. Sei proaktiv mit Vorschlaegen."
+            value={personaPersonality}
             onChange={(e) => {
-              setPersonaPrompt(e.target.value);
+              setPersonaPersonality(e.target.value);
               setHasChanges(true);
             }}
-            rows={5}
+            rows={3}
           />
           <p className="text-xs text-muted-foreground">
-            Diese Anweisungen definieren die Persoenlichkeit und das Verhalten
-            deines KI-Assistenten. Leer lassen fuer die Standard-Persona.
+            Wie soll dein Assistent kommunizieren? Ton, Stil, Humor, Formalitaet.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="persona-about-user">Ueber dich</Label>
+          <Textarea
+            id="persona-about-user"
+            placeholder="Ich bin Softwareentwickler, arbeite an AI-Projekten. Ich spreche Deutsch und Englisch."
+            value={personaAboutUser}
+            onChange={(e) => {
+              setPersonaAboutUser(e.target.value);
+              setHasChanges(true);
+            }}
+            rows={3}
+          />
+          <p className="text-xs text-muted-foreground">
+            Was soll dein Assistent ueber dich wissen? Beruf, Interessen, Kontext.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="persona-communication">Kommunikationsstil</Label>
+          <Textarea
+            id="persona-communication"
+            placeholder="Duze mich. Antworte auf Deutsch. Halte Antworten kurz und praegnant."
+            value={personaCommunication}
+            onChange={(e) => {
+              setPersonaCommunication(e.target.value);
+              setHasChanges(true);
+            }}
+            rows={3}
+          />
+          <p className="text-xs text-muted-foreground">
+            Formelle Anrede, Ausfuehrlichkeit, Sprache, Emoji-Nutzung.
           </p>
         </div>
 
         <Separator />
+
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen(!advancedOpen)}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {advancedOpen ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+            Erweitert: Freitext System-Prompt
+          </button>
+          {advancedOpen && (
+            <div className="space-y-2 pt-2">
+              <Textarea
+                id="persona-prompt"
+                placeholder="Vollstaendiger System-Prompt (ueberschreibt die strukturierten Felder, wenn keine ausgefuellt sind)"
+                value={personaPrompt}
+                onChange={(e) => {
+                  setPersonaPrompt(e.target.value);
+                  setHasChanges(true);
+                }}
+                rows={5}
+              />
+              <p className="text-xs text-muted-foreground">
+                Dieser Freitext wird nur verwendet wenn die strukturierten Felder
+                oben leer sind. Er dient als Fallback fuer fortgeschrittene Nutzer.
+              </p>
+            </div>
+          )}
+        </div>
+
         <Button
           onClick={handleSave}
           disabled={!hasChanges || saving}

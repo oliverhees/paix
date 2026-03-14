@@ -70,6 +70,9 @@ class UserMeResponse(BaseModel):
     timezone: str
     persona_name: str | None = None
     persona_prompt: str | None = None
+    persona_personality: str | None = None
+    persona_about_user: str | None = None
+    persona_communication: str | None = None
     created_at: datetime | None = None
 
 
@@ -233,6 +236,9 @@ async def get_me(user: User = Depends(get_current_user)):
         timezone=user.timezone,
         persona_name=user.persona_name,
         persona_prompt=user.persona_prompt,
+        persona_personality=user.persona_personality,
+        persona_about_user=user.persona_about_user,
+        persona_communication=user.persona_communication,
         created_at=user.created_at,
     )
 
@@ -243,6 +249,9 @@ class UpdateMeRequest(BaseModel):
     timezone: str | None = None
     persona_name: str | None = None
     persona_prompt: str | None = None
+    persona_personality: str | None = None
+    persona_about_user: str | None = None
+    persona_communication: str | None = None
 
 
 @router.put("/auth/me", response_model=UserMeResponse)
@@ -262,6 +271,12 @@ async def update_me(
         user.persona_name = request.persona_name
     if request.persona_prompt is not None:
         user.persona_prompt = request.persona_prompt
+    if request.persona_personality is not None:
+        user.persona_personality = request.persona_personality
+    if request.persona_about_user is not None:
+        user.persona_about_user = request.persona_about_user
+    if request.persona_communication is not None:
+        user.persona_communication = request.persona_communication
     db.add(user)
     await db.flush()
     return UserMeResponse(
@@ -272,5 +287,8 @@ async def update_me(
         timezone=user.timezone,
         persona_name=user.persona_name,
         persona_prompt=user.persona_prompt,
+        persona_personality=user.persona_personality,
+        persona_about_user=user.persona_about_user,
+        persona_communication=user.persona_communication,
         created_at=user.created_at,
     )
