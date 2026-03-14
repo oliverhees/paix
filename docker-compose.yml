@@ -25,6 +25,18 @@ services:
       timeout: 5s
       retries: 5
 
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "6380:6379"
+    volumes:
+      - falkordb_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   api:
     build: ./api
     ports:
@@ -35,10 +47,15 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      FALKORDB_HOST: falkordb
+      FALKORDB_PORT: 6379
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-change-me}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      falkordb:
         condition: service_healthy
 
   web:
@@ -50,5 +67,39 @@ services:
     depends_on:
       - api
 
+  celery-worker:
+    build: ./api
+    command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q default,proactive,memory
+    environment:
+      DATABASE_URL: postgresql+asyncpg://paix:${POSTGRES_PASSWORD:-paix}@postgres:5432/paix
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      FALKORDB_HOST: falkordb
+      FALKORDB_PORT: 6379
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-change-me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      falkordb:
+        condition: service_healthy
+
+  celery-beat:
+    build: ./api
+    command: celery -A celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://paix:${POSTGRES_PASSWORD:-paix}@postgres:5432/paix
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
+  falkordb_data:
