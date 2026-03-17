@@ -809,7 +809,7 @@ export default function DateienPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="size-5" />
@@ -822,11 +822,11 @@ export default function DateienPage() {
               <span className="text-sm text-muted-foreground">Datei wird geladen...</span>
             </div>
           ) : (
-            <ScrollArea className="flex-1 max-h-[60vh]">
-              <pre className="text-sm font-mono whitespace-pre-wrap break-words p-4 bg-muted rounded-lg overflow-x-auto">
+            <div className="flex-1 overflow-y-auto max-h-[70vh]">
+              <pre className="text-sm font-mono whitespace-pre-wrap break-all p-4 bg-muted rounded-lg">
                 {previewContent}
               </pre>
-            </ScrollArea>
+            </div>
           )}
           <div className="flex gap-2 justify-end pt-2">
             <Button
