@@ -7,7 +7,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
-from sqlalchemy import func, select, update, delete
+from sqlalchemy import case, func, select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.dependencies import get_current_user
@@ -714,6 +714,89 @@ async def list_skill_executions(
             for e in executions
         ],
         "total": total,
+    }
+
+
+@router.get("/skills/analytics")
+async def get_skill_analytics(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    days: int = Query(default=7, le=90),
+):
+    """Get skill execution analytics for the dashboard."""
+    from datetime import datetime, timedelta, timezone
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    # Total stats
+    total_result = await db.execute(
+        select(
+            func.count(SkillExecution.id).label("total_runs"),
+            func.count(case((SkillExecution.status == "success", 1))).label("success_count"),
+            func.count(case((SkillExecution.status == "error", 1))).label("error_count"),
+            func.avg(SkillExecution.duration_ms).label("avg_duration_ms"),
+            func.sum(SkillExecution.duration_ms).label("total_duration_ms"),
+        ).where(
+            SkillExecution.user_id == user.id,
+            SkillExecution.created_at >= since,
+        )
+    )
+    totals = total_result.one()
+
+    # Per-skill breakdown
+    per_skill = await db.execute(
+        select(
+            SkillExecution.skill_id,
+            func.count(SkillExecution.id).label("runs"),
+            func.count(case((SkillExecution.status == "success", 1))).label("successes"),
+            func.avg(SkillExecution.duration_ms).label("avg_duration"),
+        ).where(
+            SkillExecution.user_id == user.id,
+            SkillExecution.created_at >= since,
+        ).group_by(SkillExecution.skill_id)
+        .order_by(func.count(SkillExecution.id).desc())
+    )
+
+    # Fetch skill names for display
+    skill_ids_in_period = set()
+    per_skill_rows = per_skill.all()
+    for row in per_skill_rows:
+        skill_ids_in_period.add(row.skill_id)
+
+    skill_names: dict[str, str] = {}
+    if skill_ids_in_period:
+        name_result = await db.execute(
+            select(SkillConfig.skill_id, SkillConfig.name, SkillConfig.icon).where(
+                SkillConfig.user_id == user.id,
+                SkillConfig.skill_id.in_(list(skill_ids_in_period)),
+            )
+        )
+        for r in name_result:
+            skill_names[r.skill_id] = r.name or r.skill_id
+
+    return {
+        "period_days": days,
+        "totals": {
+            "total_runs": totals.total_runs or 0,
+            "success_count": totals.success_count or 0,
+            "error_count": totals.error_count or 0,
+            "success_rate": round(
+                (totals.success_count or 0) / max(totals.total_runs or 1, 1) * 100, 1
+            ),
+            "avg_duration_ms": int(totals.avg_duration_ms or 0),
+            "total_duration_ms": int(totals.total_duration_ms or 0),
+        },
+        "per_skill": [
+            {
+                "skill_id": row.skill_id,
+                "skill_name": skill_names.get(row.skill_id, row.skill_id),
+                "runs": row.runs,
+                "successes": row.successes,
+                "success_rate": round(row.successes / max(row.runs, 1) * 100, 1),
+                "avg_duration_ms": int(row.avg_duration or 0),
+            }
+            for row in per_skill_rows
+        ],
     }
 
 

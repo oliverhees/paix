@@ -35,6 +35,9 @@ import {
   MessageSquare,
   CalendarClock,
   Timer,
+  BarChart3,
+  TrendingUp,
+  Activity,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -81,6 +84,7 @@ import {
   type SkillGenerateMessage,
   type SkillGenerateResponse,
   type SkillExecutionEntry,
+  type SkillAnalytics,
 } from "@/lib/settings-service";
 import {
   SKILL_PRESETS,
@@ -2435,6 +2439,180 @@ function SkillPresetCard({
   );
 }
 
+// ─── Duration Formatter (human-readable) ─────────────────────────────────────
+
+function formatDurationHuman(ms: number | null | undefined): string {
+  if (ms == null || ms === 0) return "--";
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  if (seconds < 3600) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  }
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.round((seconds % 3600) / 60);
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+// ─── Skill Analytics Dashboard ───────────────────────────────────────────────
+
+function SkillAnalyticsDashboard() {
+  const [analytics, setAnalytics] = useState<SkillAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(7);
+
+  const fetchAnalytics = useCallback(async (periodDays: number) => {
+    setLoading(true);
+    try {
+      const data = await settingsService.getSkillAnalytics(periodDays);
+      setAnalytics(data);
+    } catch {
+      // silently fail — dashboard is supplementary
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAnalytics(days);
+  }, [days, fetchAnalytics]);
+
+  const periodOptions = [
+    { value: 7, label: "7 Tage" },
+    { value: 30, label: "30 Tage" },
+    { value: 90, label: "90 Tage" },
+  ];
+
+  if (loading && !analytics) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!analytics || analytics.totals.total_runs === 0) {
+    return null; // Don't show dashboard if no data
+  }
+
+  const { totals, per_skill } = analytics;
+
+  const successRateColor =
+    totals.success_rate >= 90
+      ? "text-emerald-500"
+      : totals.success_rate >= 50
+        ? "text-yellow-500"
+        : "text-red-500";
+
+  const errorCardClass =
+    totals.error_count > 0
+      ? "border-red-500/30 bg-red-500/5"
+      : "";
+
+  return (
+    <div className="space-y-4">
+      {/* Period filter chips */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Activity className="size-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Monitoring</span>
+        </div>
+        <div className="flex gap-1.5">
+          {periodOptions.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setDays(opt.value)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                days === opt.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Total runs */}
+        <div className="rounded-lg border p-4">
+          <div className="text-2xl font-bold">{totals.total_runs}</div>
+          <div className="text-xs text-muted-foreground mt-1">Ausfuehrungen</div>
+        </div>
+
+        {/* Success rate */}
+        <div className="rounded-lg border p-4">
+          <div className={`text-2xl font-bold ${successRateColor}`}>
+            {totals.success_rate}%
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">Erfolgsrate</div>
+        </div>
+
+        {/* Average duration */}
+        <div className="rounded-lg border p-4">
+          <div className="text-2xl font-bold">
+            {formatDurationHuman(totals.avg_duration_ms)}
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">Durchschnitt Dauer</div>
+        </div>
+
+        {/* Errors */}
+        <div className={`rounded-lg border p-4 ${errorCardClass}`}>
+          <div className={`text-2xl font-bold ${totals.error_count > 0 ? "text-red-500" : ""}`}>
+            {totals.error_count}
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">Fehler</div>
+        </div>
+      </div>
+
+      {/* Per-skill breakdown table */}
+      {per_skill.length > 0 && (
+        <div className="rounded-lg border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/30">
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">Skill</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Runs</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Erfolg</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground hidden sm:table-cell">Durchschnitt Dauer</th>
+              </tr>
+            </thead>
+            <tbody>
+              {per_skill.map((skill) => {
+                const rateColor =
+                  skill.success_rate >= 90
+                    ? "text-emerald-500"
+                    : skill.success_rate >= 50
+                      ? "text-yellow-500"
+                      : "text-red-500";
+                return (
+                  <tr key={skill.skill_id} className="border-b last:border-b-0 hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-2.5 font-medium">{skill.skill_name}</td>
+                    <td className="text-right px-4 py-2.5 tabular-nums">{skill.runs}</td>
+                    <td className={`text-right px-4 py-2.5 tabular-nums ${rateColor}`}>{skill.success_rate}%</td>
+                    <td className="text-right px-4 py-2.5 tabular-nums text-muted-foreground hidden sm:table-cell">
+                      {formatDurationHuman(skill.avg_duration_ms)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Separator />
+    </div>
+  );
+}
+
 // ─── Skill History Tab (Global) ──────────────────────────────────────────────
 
 function SkillHistoryTab() {
@@ -2884,6 +3062,7 @@ export default function SkillsPage() {
 
         {/* ── Verlauf Tab (Global History) ── */}
         <TabsContent value="verlauf" className="space-y-4 mt-4">
+          <SkillAnalyticsDashboard />
           <SkillHistoryTab />
         </TabsContent>
 

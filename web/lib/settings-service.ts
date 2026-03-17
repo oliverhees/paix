@@ -235,6 +235,32 @@ export interface SkillExecutionEntry {
   created_at: string | null;
 }
 
+// ─── Skill Analytics Types ───
+
+export interface SkillAnalyticsTotals {
+  total_runs: number;
+  success_count: number;
+  error_count: number;
+  success_rate: number;
+  avg_duration_ms: number;
+  total_duration_ms: number;
+}
+
+export interface SkillAnalyticsPerSkill {
+  skill_id: string;
+  skill_name: string;
+  runs: number;
+  successes: number;
+  success_rate: number;
+  avg_duration_ms: number;
+}
+
+export interface SkillAnalytics {
+  period_days: number;
+  totals: SkillAnalyticsTotals;
+  per_skill: SkillAnalyticsPerSkill[];
+}
+
 // ─── Skill Generation Types ───
 
 export interface SkillGenerateMessage {
@@ -360,6 +386,10 @@ class SettingsService {
     return api.get<{ logs: SkillLogEntry[] }>(
       `/skills/${skillId}/logs?limit=${limit}`
     );
+  }
+
+  async getSkillAnalytics(days = 7): Promise<SkillAnalytics> {
+    return api.get<SkillAnalytics>(`/skills/analytics?days=${days}`);
   }
 
   async getSkillExecutions(
