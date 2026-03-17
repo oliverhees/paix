@@ -366,10 +366,9 @@ export const WERKZEUG_PRESETS: WerkzeugPreset[] = [
     ],
     address: "npx -y @fanyangmeng/ghost-mcp",
     requirements: {
-      GHOST_API_URL: "URL deiner Ghost-Seite (z.B. https://meinblog.com)",
+      GHOST_API_URL: "URL deiner Ghost-Seite (z.B. https://aiianer.de)",
       GHOST_ADMIN_API_KEY: "Admin API Key aus Ghost → Settings → Integrations → Custom Integration",
-      GHOST_API_VERSION: "API Version (Standard: v5.0)",
     },
-    hint: "Erstelle einen Admin API Key unter Ghost → Settings → Integrations → Add Custom Integration",
+    hint: "GHOST_API_VERSION wird automatisch auf v5.0 gesetzt. Admin API Key findest du unter Ghost → Settings → Integrations → Add Custom Integration.",
   },
 ];
