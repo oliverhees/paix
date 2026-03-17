@@ -924,7 +924,7 @@ async def update_routine(
         raise HTTPException(status_code=404, detail="Routine not found")
 
     update_data = body.model_dump(exclude_unset=True)
-    routine = await routine_service.update_routine(db, routine, update_data)
+    routine = await routine_service.update_routine(db, uuid.UUID(routine_id), user.id, **update_data)
 
     # Re-schedule if cron or active status changed
     if routine.is_active:
