@@ -28,18 +28,22 @@ class TelegramService:
         chat_id: str,
         text: str,
         parse_mode: str = "HTML",
+        bot_token: str | None = None,
     ) -> dict[str, Any]:
         """
         Send a text message to a Telegram chat.
+        If bot_token is provided, uses that instead of the server-wide token.
         Returns the Telegram API response or error dict.
         """
-        if not self.bot_token:
+        token = bot_token or self.bot_token
+        if not token:
             return {"ok": False, "error": "Telegram bot token not configured"}
 
+        base_url = f"https://api.telegram.org/bot{token}" if bot_token else self.base_url
         client = await self._get_client()
         try:
             response = await client.post(
-                f"{self.base_url}/sendMessage",
+                f"{base_url}/sendMessage",
                 json={
                     "chat_id": chat_id,
                     "text": text,
@@ -86,7 +90,8 @@ class TelegramService:
             text_parts.append(f"<b>Idee des Tages:</b> {content}")
 
         text = "\n".join(text_parts)
-        return await self.send_message(chat_id, text)
+        user_token = await self._get_user_bot_token(user_id)
+        return await self.send_message(chat_id, text, bot_token=user_token)
 
     async def send_alert(self, user_id: str, alert: dict) -> dict[str, Any]:
         """Send an alert notification to the user."""
@@ -97,7 +102,8 @@ class TelegramService:
         title = alert.get("title", "Alert")
         content = alert.get("content", "")
         text = f"<b>{title}</b>\n\n{content}"
-        return await self.send_message(chat_id, text)
+        user_token = await self._get_user_bot_token(user_id)
+        return await self.send_message(chat_id, text, bot_token=user_token)
 
     async def _get_user_chat_id(self, user_id: str) -> str | None:
         """Load user's Telegram chat ID from notification_settings."""
@@ -119,6 +125,69 @@ class TelegramService:
                 return row
         except Exception:
             return None
+
+    async def _get_user_bot_token(self, user_id: str) -> str | None:
+        """Load user's per-user Telegram bot token from users table."""
+        try:
+            import uuid
+
+            from sqlalchemy import select
+
+            from models.database import async_session
+            from models.user import User
+
+            async with async_session() as db:
+                result = await db.execute(
+                    select(User.telegram_bot_token).where(
+                        User.id == uuid.UUID(user_id)
+                    )
+                )
+                return result.scalar_one_or_none()
+        except Exception:
+            return None
+
+    async def send_message_to_user(
+        self,
+        user_id: str,
+        text: str,
+        parse_mode: str = "HTML",
+    ) -> dict[str, Any]:
+        """
+        Send a message to a user, using their per-user bot token if available,
+        falling back to the server-wide token.
+        """
+        chat_id = await self._get_user_chat_id(user_id)
+        if not chat_id:
+            return {"ok": False, "error": "No Telegram chat_id for user"}
+
+        user_token = await self._get_user_bot_token(user_id)
+        return await self.send_message(chat_id, text, parse_mode, bot_token=user_token)
+
+    async def test_bot_token(self, bot_token: str) -> dict[str, Any]:
+        """Test a bot token by calling getMe. Returns bot info or error."""
+        client = await self._get_client()
+        try:
+            response = await client.get(
+                f"https://api.telegram.org/bot{bot_token}/getMe"
+            )
+            data = response.json()
+            return data
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+    async def send_test_message(
+        self,
+        bot_token: str,
+        chat_id: str,
+    ) -> dict[str, Any]:
+        """Send a test message using a specific bot token and chat ID."""
+        if not bot_token or not chat_id:
+            return {"ok": False, "error": "Bot token and chat ID required"}
+        return await self.send_message(
+            chat_id,
+            "<b>PAI-X Test</b>\n\nDeine Telegram-Konfiguration funktioniert!",
+            bot_token=bot_token,
+        )
 
     async def get_bot_info(self) -> dict[str, Any]:
         """Get bot info (username, name) from Telegram API."""

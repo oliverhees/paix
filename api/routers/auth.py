@@ -88,6 +88,8 @@ class UserMeResponse(BaseModel):
     s3_secret_key: str | None = None
     s3_bucket_name: str | None = None
     s3_region: str | None = None
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
     created_at: datetime | None = None
 
 
@@ -260,6 +262,8 @@ async def get_me(user: User = Depends(get_current_user)):
         s3_secret_key=_mask_api_key(user.s3_secret_key),
         s3_bucket_name=user.s3_bucket_name,
         s3_region=user.s3_region,
+        telegram_bot_token=_mask_api_key(user.telegram_bot_token),
+        telegram_chat_id=user.telegram_chat_id,
         created_at=user.created_at,
     )
 
@@ -279,6 +283,8 @@ class UpdateMeRequest(BaseModel):
     s3_secret_key: str | None = None
     s3_bucket_name: str | None = None
     s3_region: str | None = None
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
 
 
 @router.put("/auth/me", response_model=UserMeResponse)
@@ -317,6 +323,10 @@ async def update_me(
         user.s3_bucket_name = request.s3_bucket_name or None
     if request.s3_region is not None:
         user.s3_region = request.s3_region or None
+    if request.telegram_bot_token is not None and not request.telegram_bot_token.startswith("*") and "..." not in request.telegram_bot_token:
+        user.telegram_bot_token = request.telegram_bot_token or None
+    if request.telegram_chat_id is not None:
+        user.telegram_chat_id = request.telegram_chat_id or None
     db.add(user)
     await db.flush()
     return UserMeResponse(
@@ -336,5 +346,7 @@ async def update_me(
         s3_secret_key=_mask_api_key(user.s3_secret_key),
         s3_bucket_name=user.s3_bucket_name,
         s3_region=user.s3_region,
+        telegram_bot_token=_mask_api_key(user.telegram_bot_token),
+        telegram_chat_id=user.telegram_chat_id,
         created_at=user.created_at,
     )

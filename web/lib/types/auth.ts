@@ -59,6 +59,8 @@ export interface UserMeResponse {
   s3_secret_key?: string | null;
   s3_bucket_name?: string | null;
   s3_region?: string | null;
+  telegram_bot_token?: string | null;
+  telegram_chat_id?: string | null;
 }
 
 // ─── Agent State ───

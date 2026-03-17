@@ -328,6 +328,163 @@ function TelegramConnectCard({ chatId, onRefresh }: { chatId: string | null; onR
   );
 }
 
+function TelegramBotConfigCard() {
+  const { profile, fetchProfile } = useSettingsStore();
+  const [botToken, setBotToken] = useState("");
+  const [chatId, setChatId] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    if (profile) {
+      setBotToken(profile.telegram_bot_token || "");
+      setChatId(profile.telegram_chat_id || "");
+    }
+  }, [profile]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put("/auth/me", {
+        telegram_bot_token: botToken,
+        telegram_chat_id: chatId,
+      });
+      await fetchProfile();
+      toast.success("Telegram-Konfiguration gespeichert");
+    } catch {
+      toast.error("Fehler beim Speichern");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      await api.post("/notifications/telegram/test-config", {});
+      setTestResult({ ok: true });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Test fehlgeschlagen";
+      setTestResult({ ok: false, error: msg });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const isConfigured = !!(profile?.telegram_bot_token && profile?.telegram_chat_id);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Bot className="h-5 w-5" />
+          Telegram Bot Konfiguration
+          {isConfigured ? (
+            <Badge variant="default" className="bg-green-600">Konfiguriert</Badge>
+          ) : (
+            <Badge variant="secondary">Nicht konfiguriert</Badge>
+          )}
+        </CardTitle>
+        <CardDescription>
+          Konfiguriere deinen eigenen Telegram Bot fuer Benachrichtigungen.
+          Erstelle einen Bot bei{" "}
+          <a
+            href="https://t.me/BotFather"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline inline-flex items-center gap-1"
+          >
+            @BotFather <ExternalLink className="h-3 w-3" />
+          </a>{" "}
+          und kopiere den Bot Token hierher.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="telegram-bot-token">Bot Token</Label>
+            <div className="relative">
+              <Input
+                id="telegram-bot-token"
+                type={showToken ? "text" : "password"}
+                placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyz"
+                value={botToken}
+                onChange={(e) => setBotToken(e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3"
+                onClick={() => setShowToken(!showToken)}
+              >
+                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Den Token erhaeltst du von @BotFather nach dem Erstellen eines neuen Bots.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="telegram-chat-id">Chat-ID</Label>
+            <Input
+              id="telegram-chat-id"
+              placeholder="123456789"
+              value={chatId}
+              onChange={(e) => setChatId(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Deine Telegram Chat-ID. Sende /start an deinen Bot, dann /myid oder nutze @userinfobot.
+            </p>
+          </div>
+        </div>
+
+        {testResult && (
+          <div className={`rounded-md px-3 py-2 text-sm ${
+            testResult.ok
+              ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"
+              : "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200"
+          }`}>
+            {testResult.ok ? (
+              <span className="flex items-center gap-2">
+                <Check className="h-4 w-4" /> Test-Nachricht erfolgreich gesendet
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <X className="h-4 w-4" /> {testResult.error || "Test fehlgeschlagen"}
+              </span>
+            )}
+          </div>
+        )}
+
+        <Separator />
+
+        <div className="flex gap-2">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Speichern
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleTest}
+            disabled={testing || !isConfigured}
+          >
+            {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+            Verbindung testen
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function NotificationsSection() {
   const {
     notificationSettings,
@@ -417,11 +574,14 @@ function NotificationsSection() {
 
   return (
     <div className="space-y-4">
-      {/* Telegram Connection */}
+      {/* Telegram Connection (server-wide bot) */}
       <TelegramConnectCard
         chatId={notificationSettings.telegram_chat_id}
         onRefresh={fetchNotificationSettings}
       />
+
+      {/* Per-user Telegram Bot Config */}
+      <TelegramBotConfigCard />
 
       {/* Trigger Settings */}
       <Card>

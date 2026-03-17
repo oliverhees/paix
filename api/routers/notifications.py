@@ -323,6 +323,29 @@ async def create_telegram_link(
     }
 
 
+@router.post("/notifications/telegram/test-config")
+async def test_telegram_config(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Test the user's per-user Telegram bot token + chat ID by sending a test message."""
+    if not user.telegram_bot_token or not user.telegram_chat_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Telegram Bot Token und Chat-ID muessen konfiguriert sein",
+        )
+    from services.telegram_service import telegram_service
+
+    result = await telegram_service.send_test_message(
+        bot_token=user.telegram_bot_token,
+        chat_id=user.telegram_chat_id,
+    )
+    if not result.get("ok"):
+        error = result.get("error") or result.get("description", "Unbekannter Fehler")
+        raise HTTPException(status_code=400, detail=str(error))
+    return {"message": "Test-Nachricht gesendet", "ok": True}
+
+
 @router.delete("/notifications/telegram/link")
 async def disconnect_telegram(
     user: User = Depends(get_current_user),
