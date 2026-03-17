@@ -53,6 +53,97 @@ import { useChatStore } from "@/lib/stores/chat-store";
 
 import aiSphereAnimation from "../ai-sphere-animation.json";
 
+// ─── Tool Name Formatting ────────────────────────────────────────────────────
+
+/**
+ * Format raw tool names into human-readable German labels.
+ * Examples:
+ *   mcp__ghost-cms__posts_add      → "Ghost CMS: Artikel erstellen"
+ *   mcp__linear__create_issue      → "Linear: Issue erstellen"
+ *   api__weather__get_forecast     → "Weather: Vorhersage abrufen"
+ *   web_fetch                      → "Webseite abrufen"
+ *   run_code                       → "Code ausfuehren"
+ *   create_artifact                → "Artefakt erstellen"
+ *   storage_write                  → "Datei speichern"
+ *   storage_read                   → "Datei lesen"
+ *   storage_list                   → "Dateien auflisten"
+ */
+const TOOL_LABELS: Record<string, string> = {
+  web_fetch: "Webseite abrufen",
+  run_code: "Code ausfuehren",
+  create_artifact: "Artefakt erstellen",
+  storage_write: "Datei speichern",
+  storage_read: "Datei lesen",
+  storage_list: "Dateien auflisten",
+  storage_delete: "Datei loeschen",
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  add: "erstellen",
+  create: "erstellen",
+  get: "abrufen",
+  list: "auflisten",
+  search: "suchen",
+  update: "aktualisieren",
+  delete: "loeschen",
+  remove: "entfernen",
+  send: "senden",
+  read: "lesen",
+  write: "schreiben",
+  fetch: "abrufen",
+  browse: "durchsuchen",
+  edit: "bearbeiten",
+  post: "senden",
+  put: "aktualisieren",
+  find: "finden",
+  query: "abfragen",
+  execute: "ausfuehren",
+  run: "ausfuehren",
+  upload: "hochladen",
+  download: "herunterladen",
+};
+
+function formatToolName(rawName: string): string {
+  // Check static labels first
+  if (TOOL_LABELS[rawName]) return TOOL_LABELS[rawName];
+
+  // MCP tools: mcp__server-name__tool_action
+  const mcpMatch = rawName.match(/^mcp__([^_]+(?:[_-][^_]+)*)__(.+)$/);
+  if (mcpMatch) {
+    const server = mcpMatch[1]
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+    const action = mcpMatch[2].replace(/_/g, " ");
+    // Try to translate the last word
+    const parts = action.split(" ");
+    const lastPart = parts[parts.length - 1].toLowerCase();
+    if (ACTION_LABELS[lastPart]) {
+      parts[parts.length - 1] = ACTION_LABELS[lastPart];
+    }
+    return `${server}: ${parts.join(" ")}`;
+  }
+
+  // API tools: api__service__action
+  const apiMatch = rawName.match(/^api__([^_]+(?:[_-][^_]+)*)__(.+)$/);
+  if (apiMatch) {
+    const service = apiMatch[1]
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+    const action = apiMatch[2].replace(/_/g, " ");
+    const parts = action.split(" ");
+    const lastPart = parts[parts.length - 1].toLowerCase();
+    if (ACTION_LABELS[lastPart]) {
+      parts[parts.length - 1] = ACTION_LABELS[lastPart];
+    }
+    return `${service}: ${parts.join(" ")}`;
+  }
+
+  // Skill tools: skill_name format
+  return rawName
+    .replace(/[_-]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // ─── Model Selector ──────────────────────────────────────────────────────────
 
 interface ModelInfo {
@@ -426,7 +517,7 @@ export default function AIChatInterface() {
                           tc.status === "running" ? "text-blue-400" :
                           tc.status === "completed" ? "text-emerald-400" : "text-red-400"
                         )}>
-                          {tc.name}
+                          {formatToolName(tc.name)}
                         </span>
                       </div>
                       {tc.input && Object.keys(tc.input).length > 0 && (
@@ -471,7 +562,7 @@ export default function AIChatInterface() {
                     <circle cx="12" cy="12" r="10" />
                     <path d="M12 6v6l4 2" />
                   </svg>
-                  <span className="font-medium">Denkt nach und erstellt Artefakt...</span>
+                  <span className="font-medium">Denkt nach...</span>
                 </div>
                 <PromptLoader variant="pulse-dot" />
               </div>

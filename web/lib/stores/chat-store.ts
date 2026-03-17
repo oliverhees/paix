@@ -355,6 +355,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => ({
       messages: [...s.messages, userMessage],
       isStreaming: true,
+      isThinking: true,
       streamingContent: "",
       activeSkill: null,
       activeToolCalls: [],
@@ -546,6 +547,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       },
       onToolUseStart: (data) => {
         set((s) => ({
+          isThinking: false,
           activeToolCalls: [...s.activeToolCalls, {
             id: data.tool_id,
             name: data.tool_name,

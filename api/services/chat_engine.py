@@ -627,12 +627,19 @@ class ChatEngine:
         # Save user message
         await chat_service.add_message(db, session_uuid, "user", message)
 
+        # Generate message ID for this response
+        message_id = str(uuid.uuid4())
+
+        # Send thinking event immediately so frontend shows indicator
+        await adapter.send_event({
+            "type": "thinking",
+            "session_id": str(session_uuid),
+            "message_id": message_id,
+        })
+
         # Build system prompt and load history
         system_prompt = await self.build_system_prompt(user, message, db=db)
         messages = await self._load_history(db, session_uuid, message)
-
-        # Generate message ID for this response
-        message_id = str(uuid.uuid4())
 
         # Resolve API key
         provider_name = resolve_provider(model)
@@ -930,6 +937,13 @@ class ChatEngine:
                 working_messages.append({
                     "role": "user",
                     "content": tool_results_content,
+                })
+
+                # Signal thinking again before next LLM round
+                await adapter.send_event({
+                    "type": "thinking",
+                    "session_id": str(session_uuid),
+                    "message_id": message_id,
                 })
 
             else:
