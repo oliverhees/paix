@@ -54,6 +54,35 @@ class McpServerRequest(BaseModel):
         return v
 
 
+class McpServerUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    transport_type: str | None = None
+    config: dict | None = None
+    tools: list[str] | None = None
+    active: bool | None = None
+
+    @field_validator("transport_type")
+    @classmethod
+    def validate_transport_type(cls, v: str | None) -> str | None:
+        if v is not None and v not in VALID_TRANSPORT_TYPES:
+            raise ValueError(
+                f"transport_type must be one of: {', '.join(sorted(VALID_TRANSPORT_TYPES))}"
+            )
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str | None) -> str | None:
+        if v is not None:
+            v = v.strip()
+            if not v:
+                raise ValueError("name must not be empty")
+            if len(v) > 100:
+                raise ValueError("name must not exceed 100 characters")
+        return v
+
+
 def _server_to_dict(server: McpServer) -> dict:
     """Serialize a McpServer ORM object to a response dict."""
     return {
@@ -143,11 +172,11 @@ async def create_werkzeug(
 @router.put("/werkzeuge/{server_id}")
 async def update_werkzeug(
     server_id: uuid.UUID,
-    request: McpServerRequest,
+    request: McpServerUpdateRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update an existing MCP server registration."""
+    """Update an existing MCP server registration (partial update)."""
     result = await db.execute(
         select(McpServer).where(
             McpServer.id == server_id,
@@ -161,18 +190,20 @@ async def update_werkzeug(
             detail=f"Werkzeug '{server_id}' not found",
         )
 
-    await db.execute(
-        update(McpServer)
-        .where(McpServer.id == server_id)
-        .values(
-            name=request.name,
-            description=request.description,
-            transport_type=request.transport_type,
-            config=request.config,
-            tools=request.tools,
+    # Build update dict from provided (non-None) fields only
+    update_values = {}
+    for field in ("name", "description", "transport_type", "config", "tools", "active"):
+        value = getattr(request, field)
+        if value is not None:
+            update_values[field] = value
+
+    if update_values:
+        await db.execute(
+            update(McpServer)
+            .where(McpServer.id == server_id)
+            .values(**update_values)
         )
-    )
-    await db.flush()
+        await db.flush()
 
     result = await db.execute(select(McpServer).where(McpServer.id == server_id))
     updated = result.scalar_one()

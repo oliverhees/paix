@@ -19,6 +19,7 @@ import {
   Settings2,
   Globe,
   X,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,8 +32,23 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -299,6 +315,278 @@ function PresetCard({
   );
 }
 
+// ── Edit Werkzeug Dialog ──
+
+function EditWerkzeugDialog({
+  server,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  server: McpServer;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (id: string, data: McpServerUpdateRequest) => Promise<void>;
+}) {
+  const [name, setName] = useState(server.name);
+  const [description, setDescription] = useState(server.description || "");
+  const [transportType, setTransportType] = useState<TransportType>(
+    server.transport_type
+  );
+  const [address, setAddress] = useState(
+    configToAddress(server.transport_type, server.config)
+  );
+  const [envPairs, setEnvPairs] = useState<{ key: string; value: string }[]>(
+    () => {
+      const env =
+        server.config?.env && typeof server.config.env === "object"
+          ? (server.config.env as Record<string, string>)
+          : {};
+      const entries = Object.entries(env);
+      return entries.length > 0
+        ? entries.map(([key, value]) => ({ key, value: String(value) }))
+        : [{ key: "", value: "" }];
+    }
+  );
+  const [saving, setSaving] = useState(false);
+
+  // Reset form when dialog opens with new server data
+  useEffect(() => {
+    if (open) {
+      setName(server.name);
+      setDescription(server.description || "");
+      setTransportType(server.transport_type);
+      setAddress(configToAddress(server.transport_type, server.config));
+      const env =
+        server.config?.env && typeof server.config.env === "object"
+          ? (server.config.env as Record<string, string>)
+          : {};
+      const entries = Object.entries(env);
+      setEnvPairs(
+        entries.length > 0
+          ? entries.map(([key, value]) => ({ key, value: String(value) }))
+          : [{ key: "", value: "" }]
+      );
+    }
+  }, [open, server]);
+
+  function updateEnvPair(
+    idx: number,
+    field: "key" | "value",
+    val: string
+  ) {
+    setEnvPairs((prev) =>
+      prev.map((p, i) => (i === idx ? { ...p, [field]: val } : p))
+    );
+  }
+
+  function addEnvPair() {
+    setEnvPairs((prev) => [...prev, { key: "", value: "" }]);
+  }
+
+  function removeEnvPair(idx: number) {
+    setEnvPairs((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      // Build config from address/transport
+      let config: Record<string, unknown>;
+      if (transportType === "stdio") {
+        const parts = address.trim().split(/\s+/);
+        config = {
+          command: parts[0] || "",
+          ...(parts.length > 1 ? { args: parts.slice(1) } : {}),
+        };
+      } else {
+        config = { url: address.trim() };
+      }
+
+      // Add env vars
+      const envObj: Record<string, string> = {};
+      for (const pair of envPairs) {
+        if (pair.key.trim()) {
+          envObj[pair.key.trim()] = pair.value;
+        }
+      }
+      if (Object.keys(envObj).length > 0) {
+        config.env = envObj;
+      }
+
+      await onSave(server.id, {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        transport_type: transportType,
+        config,
+      });
+      onOpenChange(false);
+      toast.success("Werkzeug aktualisiert");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Fehler beim Speichern"
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Werkzeug bearbeiten</DialogTitle>
+          <DialogDescription>
+            Konfiguration von &quot;{server.name}&quot; anpassen.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* Name */}
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-name">Name</Label>
+            <Input
+              id="edit-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={saving}
+            />
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-desc">Beschreibung</Label>
+            <Input
+              id="edit-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              disabled={saving}
+              placeholder="Wofuer ist dieses Werkzeug?"
+            />
+          </div>
+
+          {/* Transport Type */}
+          <div className="space-y-1.5">
+            <Label>Transport</Label>
+            <Select
+              value={transportType}
+              onValueChange={(v) => setTransportType(v as TransportType)}
+              disabled={saving}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="stdio">stdio (lokal)</SelectItem>
+                <SelectItem value="sse">SSE (Server-Sent Events)</SelectItem>
+                <SelectItem value="streamable_http">
+                  Streamable HTTP
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Address / Command */}
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-address">
+              {transportType === "stdio" ? "Befehl" : "URL"}
+            </Label>
+            <Input
+              id="edit-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              disabled={saving}
+              className="font-mono text-xs"
+              placeholder={
+                transportType === "stdio"
+                  ? "npx -y @name/mcp-server"
+                  : "https://..."
+              }
+            />
+          </div>
+
+          {/* Environment Variables */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Umgebungsvariablen</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={addEnvPair}
+                disabled={saving}
+                className="gap-1 h-7 text-xs"
+              >
+                <Plus className="size-3" /> Hinzufuegen
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {envPairs.map((pair, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <Input
+                    placeholder="KEY"
+                    value={pair.key}
+                    onChange={(e) => updateEnvPair(idx, "key", e.target.value)}
+                    disabled={saving}
+                    className="font-mono text-xs flex-1"
+                  />
+                  <Input
+                    placeholder="Wert"
+                    value={pair.value}
+                    onChange={(e) =>
+                      updateEnvPair(idx, "value", e.target.value)
+                    }
+                    disabled={saving}
+                    className="font-mono text-xs flex-1"
+                    type="password"
+                  />
+                  {envPairs.length > 1 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => removeEnvPair(idx)}
+                      disabled={saving}
+                      className="h-8 w-8 p-0 shrink-0 text-muted-foreground"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              z.B. GHOST_API_URL, GHOST_ADMIN_API_KEY, API_TOKEN etc.
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saving || !name.trim() || !address.trim()}
+            className="gap-1.5"
+          >
+            {saving ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Save className="size-3.5" />
+            )}
+            Speichern
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Connected Werkzeug Card ──
 
 function ConnectedCard({
@@ -317,6 +605,7 @@ function ConnectedCard({
   const [deleting, setDeleting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [discovering, setDiscovering] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
     error: string | null;
@@ -486,6 +775,18 @@ function ConnectedCard({
             <Button
               size="sm"
               variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditOpen(true);
+              }}
+              className="gap-1.5"
+            >
+              <Pencil className="size-3.5" />
+              Bearbeiten
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               onClick={handleTest}
               disabled={testing}
               className="gap-1.5"
@@ -512,6 +813,14 @@ function ConnectedCard({
               Entfernen
             </Button>
           </div>
+
+          {/* Edit Dialog */}
+          <EditWerkzeugDialog
+            server={server}
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            onSave={onUpdate}
+          />
         </div>
       )}
     </div>
