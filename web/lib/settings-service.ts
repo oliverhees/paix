@@ -215,6 +215,20 @@ export interface SkillLogEntry {
   created_at: string | null;
 }
 
+// ─── Skill Execution (Global History) Types ───
+
+export interface SkillExecutionEntry {
+  id: string;
+  skill_id: string;
+  skill_name: string;
+  status: string;
+  input_summary: string | null;
+  output_summary: string | null;
+  duration_ms: number | null;
+  error_message: string | null;
+  created_at: string | null;
+}
+
 // ─── Skill Generation Types ───
 
 export interface SkillGenerateMessage {
@@ -339,6 +353,15 @@ class SettingsService {
   ): Promise<{ logs: SkillLogEntry[] }> {
     return api.get<{ logs: SkillLogEntry[] }>(
       `/skills/${skillId}/logs?limit=${limit}`
+    );
+  }
+
+  async getSkillExecutions(
+    limit = 20,
+    offset = 0
+  ): Promise<{ executions: SkillExecutionEntry[]; total: number }> {
+    return api.get<{ executions: SkillExecutionEntry[]; total: number }>(
+      `/skills/executions?limit=${limit}&offset=${offset}`
     );
   }
 

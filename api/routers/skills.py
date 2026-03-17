@@ -5,7 +5,7 @@ import logging
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy import func, select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -609,6 +609,66 @@ async def seed_default_skills(
     return {
         "message": f"Seeded {len(configs)} default skills with SKILL.md format",
         "skills": [_cfg_to_dict(cfg) for cfg in configs],
+    }
+
+
+@router.get("/skills/executions")
+async def list_skill_executions(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=20, le=50),
+    offset: int = Query(default=0),
+):
+    """List all skill executions for the user, most recent first."""
+    limit = max(1, min(limit, 50))
+    offset = max(0, offset)
+
+    result = await db.execute(
+        select(SkillExecution)
+        .where(SkillExecution.user_id == user.id)
+        .order_by(SkillExecution.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    executions = list(result.scalars().all())
+
+    # Fetch skill names for display
+    skill_ids = list({e.skill_id for e in executions})
+    skill_names: dict[str, str] = {}
+    if skill_ids:
+        name_result = await db.execute(
+            select(SkillConfig.skill_id, SkillConfig.name).where(
+                SkillConfig.user_id == user.id,
+                SkillConfig.skill_id.in_(skill_ids),
+            )
+        )
+        for row in name_result:
+            skill_names[row.skill_id] = row.name or row.skill_id
+
+    # Total count for pagination
+    count_result = await db.execute(
+        select(func.count())
+        .select_from(SkillExecution)
+        .where(SkillExecution.user_id == user.id)
+    )
+    total = count_result.scalar() or 0
+
+    return {
+        "executions": [
+            {
+                "id": str(e.id),
+                "skill_id": e.skill_id,
+                "skill_name": skill_names.get(e.skill_id, e.skill_id),
+                "status": e.status,
+                "input_summary": e.input_summary,
+                "output_summary": e.output_summary,
+                "duration_ms": e.duration_ms,
+                "error_message": e.error_message,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in executions
+        ],
+        "total": total,
     }
 
 

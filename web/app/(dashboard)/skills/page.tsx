@@ -30,6 +30,8 @@ import {
   ChevronUp,
   Check,
   Info,
+  History,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -74,6 +76,7 @@ import {
   type SkillCreateRequest,
   type SkillGenerateMessage,
   type SkillGenerateResponse,
+  type SkillExecutionEntry,
 } from "@/lib/settings-service";
 import {
   SKILL_PRESETS,
@@ -2027,6 +2030,215 @@ function SkillPresetCard({
   );
 }
 
+// ─── Skill History Tab (Global) ──────────────────────────────────────────────
+
+function SkillHistoryTab() {
+  const [executions, setExecutions] = useState<SkillExecutionEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [offset, setOffset] = useState(0);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const limit = 20;
+
+  const fetchExecutions = useCallback(async (currentOffset: number) => {
+    setLoading(true);
+    try {
+      const data = await settingsService.getSkillExecutions(limit, currentOffset);
+      setExecutions(data.executions ?? []);
+      setTotal(data.total ?? 0);
+    } catch {
+      toast.error("Fehler beim Laden des Verlaufs");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchExecutions(offset);
+  }, [offset, fetchExecutions]);
+
+  function formatDuration(ms: number | null): string {
+    if (ms == null) return "-";
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+
+  function formatDate(iso: string | null): string {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    return d.toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  if (loading && executions.length === 0) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-16 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!loading && executions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+        <div className="rounded-full bg-muted p-6">
+          <History className="size-10 text-muted-foreground" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-lg font-semibold">Noch keine Ausfuehrungen</p>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Sobald du Skills ausfuehrst, erscheint hier der chronologische Verlauf
+            aller Skill-Aktivitaeten.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const hasMore = offset + limit < total;
+  const hasPrev = offset > 0;
+
+  return (
+    <div className="space-y-3">
+      {executions.map((ex) => {
+        const isExpanded = expandedId === ex.id;
+        const isSuccess = ex.status === "success";
+
+        return (
+          <Card
+            key={ex.id}
+            className="cursor-pointer transition-colors hover:bg-muted/30"
+            onClick={() => setExpandedId(isExpanded ? null : ex.id)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                {/* Status icon */}
+                <div
+                  className={`shrink-0 rounded-full p-1.5 ${
+                    isSuccess
+                      ? "bg-emerald-500/10 text-emerald-500"
+                      : "bg-red-500/10 text-red-500"
+                  }`}
+                >
+                  {isSuccess ? (
+                    <CheckCircle2 className="size-4" />
+                  ) : (
+                    <XCircle className="size-4" />
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm truncate">
+                      {ex.skill_name}
+                    </span>
+                    <Badge
+                      variant={isSuccess ? "secondary" : "destructive"}
+                      className="text-[10px] px-1.5 py-0"
+                    >
+                      {isSuccess ? "Erfolg" : "Fehler"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Clock className="size-3" />
+                      {formatDate(ex.created_at)}
+                    </span>
+                    {ex.duration_ms != null && (
+                      <span>{formatDuration(ex.duration_ms)}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Expand indicator */}
+                <div className="shrink-0 text-muted-foreground">
+                  {isExpanded ? (
+                    <ChevronUp className="size-4" />
+                  ) : (
+                    <ChevronDown className="size-4" />
+                  )}
+                </div>
+              </div>
+
+              {/* Expanded content */}
+              {isExpanded && (
+                <div className="mt-3 pt-3 border-t space-y-2">
+                  {ex.input_summary && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">
+                        Eingabe
+                      </p>
+                      <p className="text-sm bg-muted/50 rounded-md p-2">
+                        {ex.input_summary}
+                      </p>
+                    </div>
+                  )}
+                  {ex.output_summary && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">
+                        Ausgabe
+                      </p>
+                      <p className="text-sm bg-muted/50 rounded-md p-2 whitespace-pre-wrap">
+                        {ex.output_summary}
+                      </p>
+                    </div>
+                  )}
+                  {ex.error_message && (
+                    <div>
+                      <p className="text-xs font-medium text-red-400 mb-1 flex items-center gap-1">
+                        <AlertCircle className="size-3" />
+                        Fehler
+                      </p>
+                      <p className="text-sm bg-red-500/10 text-red-400 rounded-md p-2">
+                        {ex.error_message}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {/* Pagination */}
+      {(hasPrev || hasMore) && (
+        <div className="flex items-center justify-between pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasPrev}
+            onClick={() => setOffset((prev) => Math.max(0, prev - limit))}
+          >
+            <ChevronLeft className="size-4 mr-1" />
+            Zurueck
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            {offset + 1}–{Math.min(offset + limit, total)} von {total}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasMore}
+            onClick={() => setOffset((prev) => prev + limit)}
+          >
+            Weiter
+            <ChevronDown className="size-4 ml-1 -rotate-90" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Skills Page ────────────────────────────────────────────────────────────
 
 type PageMode = "list" | "detail" | "create";
@@ -2218,12 +2430,12 @@ export default function SkillsPage() {
         }}
       />
 
-      {/* Tabs: Bibliothek + Meine Skills */}
-      <Tabs defaultValue="bibliothek">
+      {/* Tabs: Verlauf + Meine Skills + Bibliothek */}
+      <Tabs defaultValue="verlauf">
         <TabsList>
-          <TabsTrigger value="bibliothek" className="gap-2">
-            <Library className="size-4" />
-            Bibliothek
+          <TabsTrigger value="verlauf" className="gap-2">
+            <History className="size-4" />
+            Verlauf
           </TabsTrigger>
           <TabsTrigger value="meine" className="gap-2">
             <Zap className="size-4" />
@@ -2234,7 +2446,16 @@ export default function SkillsPage() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="bibliothek" className="gap-2">
+            <Library className="size-4" />
+            Bibliothek
+          </TabsTrigger>
         </TabsList>
+
+        {/* ── Verlauf Tab (Global History) ── */}
+        <TabsContent value="verlauf" className="space-y-4 mt-4">
+          <SkillHistoryTab />
+        </TabsContent>
 
         {/* ── Bibliothek Tab ── */}
         <TabsContent value="bibliothek" className="space-y-4 mt-4">
