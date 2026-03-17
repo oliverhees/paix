@@ -278,7 +278,34 @@ class RoutineExecutorService:
                     )
                     await db.commit()
 
-                # Step 6: Create hidden chat session
+                # Step 6: Direct skill execution (if routine has exactly one skill)
+                routine_skill_ids = {s.skill_id for s in routine.skills}
+                if len(routine_skill_ids) == 1:
+                    direct_skill_id = next(iter(routine_skill_ids))
+                    logger.info("Direct skill execution for routine %s: skill=%s", routine.id, direct_skill_id)
+                    skill_result = await skill_service.execute(
+                        db=db, user_id=user_id, skill_id=direct_skill_id,
+                        user_input=routine.prompt or "",
+                    )
+                    result_text = skill_result.get("output", "")
+                    duration = skill_result.get("duration_ms", 0)
+                    if skill_result.get("status") == "success":
+                        await routine_service.update_run_status(
+                            db, run.id, "completed",
+                            result_text=result_text,
+                            result_summary=result_text[:500] if result_text else None,
+                            duration_ms=duration,
+                        )
+                    else:
+                        await routine_service.update_run_status(
+                            db, run.id, "failed",
+                            error_message=skill_result.get("error", "Skill execution failed"),
+                            duration_ms=duration,
+                        )
+                    await db.commit()
+                    return
+
+                # Step 6b: Create hidden chat session (multi-skill or no-skill routines)
                 chat_session = await chat_service.create_session(
                     db, user_id, title=f"[Routine] {routine.name}"
                 )
