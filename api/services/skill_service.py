@@ -408,8 +408,12 @@ class SkillService:
                 if param_def.get("required"):
                     required.append(param_name)
 
+            # Sanitize skill_id for Anthropic tool name: only a-zA-Z0-9_-
+            import re
+            safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', config.skill_id)[:128]
+
             tool = {
-                "name": config.skill_id,
+                "name": safe_name,
                 "description": definition["description"],
                 "input_schema": {
                     "type": "object",
