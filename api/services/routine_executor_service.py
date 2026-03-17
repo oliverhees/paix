@@ -517,6 +517,40 @@ class RoutineExecutorService:
 
                         await db.commit()
 
+                        # In-App Notification bei Routine-Fehler
+                        try:
+                            from models.notification import Notification
+
+                            error_text = str(exc)
+                            alert_notification = Notification(
+                                user_id=user_id,
+                                type="routine_error",
+                                title=f"Routine '{routine.name}' fehlgeschlagen",
+                                content=(error_text[:500] if error_text else "Unbekannter Fehler"),
+                                sent_channels=["in_app"],
+                            )
+                            db.add(alert_notification)
+                            await db.flush()
+                        except Exception:
+                            logger.warning("Failed to create routine error notification", exc_info=True)
+
+                        # Telegram Alert bei Routine-Fehler (wenn konfiguriert)
+                        try:
+                            from services.telegram_service import telegram_service
+
+                            error_preview = str(exc)
+                            if len(error_preview) > 200:
+                                error_preview = error_preview[:200] + "..."
+                            await telegram_service.send_message_to_user(
+                                user_id=str(user_id),
+                                text=(
+                                    f"<b>Routine-Fehler: {routine.name}</b>\n\n"
+                                    f"{error_preview}"
+                                ),
+                            )
+                        except Exception:
+                            logger.warning("Failed to send routine error Telegram alert", exc_info=True)
+
                         # Trigger failure chains
                         if chain_depth < 10:
                             await self._trigger_chains(

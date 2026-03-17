@@ -935,6 +935,40 @@ async def execute_skill(
     )
 
     if result["status"] == "error":
+        # In-App Notification bei Skill-Fehler
+        try:
+            from models.notification import Notification
+
+            error_text = result.get("error", "Unbekannter Fehler")
+            notification = Notification(
+                user_id=user.id,
+                type="skill_error",
+                title=f"Skill '{skill_id}' fehlgeschlagen",
+                content=(error_text[:500] if error_text else "Unbekannter Fehler"),
+                sent_channels=["in_app"],
+            )
+            db.add(notification)
+            await db.flush()
+        except Exception:
+            logger.warning("Failed to create skill error notification", exc_info=True)
+
+        # Telegram Alert bei Skill-Fehler (wenn konfiguriert)
+        try:
+            from services.telegram_service import telegram_service
+
+            error_preview = result.get("error", "Unbekannter Fehler")
+            if error_preview and len(error_preview) > 200:
+                error_preview = error_preview[:200] + "..."
+            await telegram_service.send_message_to_user(
+                user_id=str(user.id),
+                text=(
+                    f"<b>Skill-Fehler: {skill_id}</b>\n\n"
+                    f"{error_preview}"
+                ),
+            )
+        except Exception:
+            logger.warning("Failed to send skill error Telegram alert", exc_info=True)
+
         raise HTTPException(
             status_code=400,
             detail=result.get("error", "Skill execution failed"),

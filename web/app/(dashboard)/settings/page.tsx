@@ -614,6 +614,65 @@ function NotificationsSection() {
         </CardContent>
       </Card>
 
+      {/* Alerting */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-amber-500" />
+            Alerting
+          </CardTitle>
+          <CardDescription>
+            Automatische Benachrichtigungen bei Fehlern in Skills und Routinen/Workflows.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">Skill-Fehler</p>
+              <p className="text-xs text-muted-foreground">
+                In-App Benachrichtigung wenn ein Skill fehlschlaegt
+              </p>
+            </div>
+            <Badge variant="success" className="gap-1">
+              <Check className="h-3 w-3" /> Immer aktiv
+            </Badge>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">Workflow/Routine-Fehler</p>
+              <p className="text-xs text-muted-foreground">
+                In-App Benachrichtigung wenn eine Routine fehlschlaegt
+              </p>
+            </div>
+            <Badge variant="success" className="gap-1">
+              <Check className="h-3 w-3" /> Immer aktiv
+            </Badge>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">Telegram-Alerts</p>
+              <p className="text-xs text-muted-foreground">
+                Fehler-Alerts zusaetzlich per Telegram senden
+              </p>
+            </div>
+            {notificationSettings.channels?.telegram ? (
+              <Badge variant="success" className="gap-1">
+                <Check className="h-3 w-3" /> Aktiv
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="gap-1">
+                <X className="h-3 w-3" /> Telegram nicht aktiv
+              </Badge>
+            )}
+          </div>
+          {!notificationSettings.channels?.telegram && (
+            <p className="text-xs text-muted-foreground">
+              Aktiviere den Telegram-Kanal weiter unten, um Fehler-Alerts auch per Telegram zu erhalten.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Channels */}
       <Card>
         <CardHeader>
