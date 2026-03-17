@@ -151,6 +151,9 @@ export interface SkillItem {
   success_rate: number;
   parameters?: Record<string, SkillParameterDef>;
   skill_md?: string | null;
+  category?: string | null;
+  icon?: string | null;
+  output_path?: string | null;
 }
 
 export interface SkillDetail {
@@ -379,6 +382,18 @@ class SettingsService {
     messages: SkillGenerateMessage[]
   ): Promise<SkillGenerateResponse> {
     return api.post<SkillGenerateResponse>("/skills/generate", { messages });
+  }
+
+  async scheduleSkill(
+    skillId: string,
+    cronExpression: string,
+    timezone = "Europe/Berlin",
+    description = ""
+  ): Promise<{ routine_id: string; name: string; cron: string }> {
+    return api.post<{ routine_id: string; name: string; cron: string }>(
+      `/skills/${skillId}/schedule`,
+      { cron_expression: cronExpression, timezone, description }
+    );
   }
 
   // ── Werkzeuge (MCP Servers) ──

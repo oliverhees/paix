@@ -43,6 +43,10 @@ class SkillConfig(Base):
     parameters: Mapped[dict] = mapped_column(JSONB, default=dict)
     # True for user-created skills, False for seeded default skills
     is_custom: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Category, icon (emoji), and default output path
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    icon: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    output_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Anthropic Skills Open Standard – full SKILL.md content (YAML frontmatter + markdown body)
     skill_md: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Author, version, tags, etc.

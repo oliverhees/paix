@@ -33,6 +33,8 @@ import {
   History,
   AlertCircle,
   MessageSquare,
+  CalendarClock,
+  Timer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -337,6 +339,183 @@ function McpToolSelector({
   );
 }
 
+// ─── Schedule Presets ────────────────────────────────────────────────────────
+
+const SCHEDULE_PRESETS = [
+  { label: "Taeglich 07:30", cron: "30 7 * * *" },
+  { label: "Taeglich 18:00", cron: "0 18 * * *" },
+  { label: "Montags 09:00", cron: "0 9 * * 1" },
+  { label: "Alle 6 Stunden", cron: "0 */6 * * *" },
+] as const;
+
+const TIMEZONE_OPTIONS = [
+  "Europe/Berlin",
+  "Europe/Vienna",
+  "Europe/Zurich",
+  "Europe/London",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Asia/Tokyo",
+  "UTC",
+] as const;
+
+// ─── Schedule Dialog ────────────────────────────────────────────────────────
+
+function SkillScheduleDialog({
+  skill,
+  open,
+  onOpenChange,
+}: {
+  skill: SkillItem;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [selectedCron, setSelectedCron] = useState("");
+  const [customCron, setCustomCron] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+  const [timezone, setTimezone] = useState("Europe/Berlin");
+  const [saving, setSaving] = useState(false);
+
+  const activeCron = showCustom && customCron.trim() ? customCron.trim() : selectedCron;
+
+  async function handleSave() {
+    if (!activeCron) {
+      toast.error("Bitte waehle einen Zeitplan aus.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await settingsService.scheduleSkill(skill.id, activeCron, timezone);
+      toast.success("Skill geplant! Wird automatisch ausgefuehrt.");
+      onOpenChange(false);
+      // Reset state
+      setSelectedCron("");
+      setCustomCron("");
+      setShowCustom(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Fehler beim Planen";
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarClock className="size-5" />
+            Skill planen: {skill.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-2">
+          {/* Preset Chips */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Zeitplan</Label>
+            <div className="flex flex-wrap gap-2">
+              {SCHEDULE_PRESETS.map((preset) => (
+                <button
+                  key={preset.cron}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCron(preset.cron);
+                    setShowCustom(false);
+                    setCustomCron("");
+                  }}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    selectedCron === preset.cron && !showCustom
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:border-primary/50 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Timer className="size-3" />
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Cron Toggle */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowCustom(!showCustom)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showCustom ? (
+                <ChevronUp className="size-3" />
+              ) : (
+                <ChevronDown className="size-3" />
+              )}
+              Eigener Cron-Ausdruck
+            </button>
+            {showCustom && (
+              <div className="space-y-1">
+                <Input
+                  placeholder="z.B. 30 7 * * * (Min Std Tag Mon Wtag)"
+                  value={customCron}
+                  onChange={(e) => {
+                    setCustomCron(e.target.value);
+                    setSelectedCron("");
+                  }}
+                  className="h-9 text-sm font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Format: Minute Stunde Tag Monat Wochentag
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Timezone */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Zeitzone</Label>
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIMEZONE_OPTIONS.map((tz) => (
+                  <SelectItem key={tz} value={tz} className="text-sm">
+                    {tz}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Active Cron Preview */}
+          {activeCron && (
+            <div className="rounded-lg bg-muted/50 border p-3 text-xs text-muted-foreground flex items-center gap-2">
+              <CalendarClock className="size-4 shrink-0 text-primary" />
+              <span>
+                Cron: <code className="font-mono text-foreground">{activeCron}</code>
+                {" "}({timezone})
+              </span>
+            </div>
+          )}
+
+          {/* Save Button */}
+          <Button
+            onClick={handleSave}
+            disabled={!activeCron || saving}
+            className="w-full gap-2"
+          >
+            {saving ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <CalendarClock className="size-4" />
+            )}
+            {saving ? "Wird geplant..." : "Zeitplan speichern"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Skill Card (List View) ─────────────────────────────────────────────────
 
 function SkillCard({
@@ -349,6 +528,7 @@ function SkillCard({
   onToggle: (id: string, active: boolean) => void;
 }) {
   const [toggling, setToggling] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const hasSkillMd = Boolean(skill.skill_md);
 
   async function handleToggle() {
@@ -361,80 +541,102 @@ function SkillCard({
   }
 
   return (
-    <Card
-      className={`transition-all duration-200 cursor-pointer hover:border-primary/50 hover:shadow-sm ${
-        !skill.active ? "opacity-60" : ""
-      }`}
-    >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div
-            className="flex items-center gap-3 flex-1 min-w-0"
-            onClick={() => onSelect(skill.id)}
-          >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Zap className="size-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-semibold truncate">
-                  {skill.name}
-                </CardTitle>
-                <Badge
-                  variant={skill.active ? "default" : "secondary"}
-                  className="text-[10px] px-1.5 py-0 h-5 shrink-0"
-                >
-                  {skill.active ? "Aktiv" : "Inaktiv"}
-                </Badge>
-                {hasSkillMd && (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] px-1.5 py-0 h-5 shrink-0 gap-1 border-emerald-700/50 text-emerald-400"
-                  >
-                    <FileText className="size-2.5" />
-                    SKILL.md
-                  </Badge>
-                )}
+    <>
+      <Card
+        className={`transition-all duration-200 cursor-pointer hover:border-primary/50 hover:shadow-sm ${
+          !skill.active ? "opacity-60" : ""
+        }`}
+      >
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div
+              className="flex items-center gap-3 flex-1 min-w-0"
+              onClick={() => onSelect(skill.id)}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Zap className="size-5" />
               </div>
-              <CardDescription className="text-xs mt-0.5 line-clamp-2">
-                {skill.description}
-              </CardDescription>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm font-semibold truncate">
+                    {skill.name}
+                  </CardTitle>
+                  <Badge
+                    variant={skill.active ? "default" : "secondary"}
+                    className="text-[10px] px-1.5 py-0 h-5 shrink-0"
+                  >
+                    {skill.active ? "Aktiv" : "Inaktiv"}
+                  </Badge>
+                  {hasSkillMd && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 h-5 shrink-0 gap-1 border-emerald-700/50 text-emerald-400"
+                    >
+                      <FileText className="size-2.5" />
+                      SKILL.md
+                    </Badge>
+                  )}
+                </div>
+                <CardDescription className="text-xs mt-0.5 line-clamp-2">
+                  {skill.description}
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs gap-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setScheduleOpen(true);
+                }}
+              >
+                <CalendarClock className="size-3" />
+                Planen
+              </Button>
+              <Switch
+                checked={skill.active}
+                onCheckedChange={handleToggle}
+                disabled={toggling}
+              />
             </div>
           </div>
-          <Switch
-            checked={skill.active}
-            onCheckedChange={handleToggle}
-            disabled={toggling}
-          />
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0" onClick={() => onSelect(skill.id)}>
-        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Play className="size-3" />
-            {skill.execution_count}x ausgefuehrt
-          </span>
-          {skill.execution_count > 0 && (
+        </CardHeader>
+        <CardContent className="pt-0" onClick={() => onSelect(skill.id)}>
+          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              <CheckCircle2 className="size-3" />
-              {Math.round(skill.success_rate * 100)}% Erfolg
+              <Play className="size-3" />
+              {skill.execution_count}x ausgefuehrt
             </span>
-          )}
-          {skill.last_execution && (
-            <span className="flex items-center gap-1">
-              <Clock className="size-3" />
-              {formatDate(skill.last_execution)}
-            </span>
-          )}
-          {skill.description && (
-            <span className="flex items-center gap-1 text-primary/60">
-              <Sparkles className="size-3" />
-              Auto-Trigger via Beschreibung
-            </span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            {skill.execution_count > 0 && (
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="size-3" />
+                {Math.round(skill.success_rate * 100)}% Erfolg
+              </span>
+            )}
+            {skill.last_execution && (
+              <span className="flex items-center gap-1">
+                <Clock className="size-3" />
+                {formatDate(skill.last_execution)}
+              </span>
+            )}
+            {skill.description && (
+              <span className="flex items-center gap-1 text-primary/60">
+                <Sparkles className="size-3" />
+                Auto-Trigger via Beschreibung
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <SkillScheduleDialog
+        skill={skill}
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+      />
+    </>
   );
 }
 

@@ -29,10 +29,20 @@ router = APIRouter()
 # Each entry maps to a SkillConfig row (is_custom=False)
 # ──────────────────────────────────────────────
 
+_SEED_CATEGORIES: dict[str, tuple[str, str]] = {
+    "calendar_briefing": ("productivity", "\U0001f4c5"),   # 📅
+    "content_pipeline": ("writing", "\u270d\ufe0f"),       # ✍️
+    "meeting_prep": ("productivity", "\U0001f91d"),         # 🤝
+    "follow_up": ("communication", "\U0001f4e9"),           # 📩
+    "idea_capture": ("creativity", "\U0001f4a1"),           # 💡
+}
+
+
 def _build_seed_skills() -> list[dict]:
     """Build seed skill list from SKILL_DEFINITIONS (single source of truth)."""
     seeds = []
     for skill_id, defn in SKILL_DEFINITIONS.items():
+        cat, icon = _SEED_CATEGORIES.get(skill_id, (None, None))
         seeds.append(
             {
                 "skill_id": skill_id,
@@ -43,6 +53,8 @@ def _build_seed_skills() -> list[dict]:
                 "allowed_tools": defn.get("allowed_tools", []),
                 "metadata_json": defn.get("metadata", {}),
                 "skill_md": DEFAULT_SKILL_MDS.get(skill_id),
+                "category": cat,
+                "icon": icon,
             }
         )
     return seeds
@@ -56,11 +68,20 @@ SEED_SKILLS = _build_seed_skills()
 # ──────────────────────────────────────────────
 
 
+class SkillScheduleRequest(BaseModel):
+    cron_expression: str  # e.g. "30 7 * * *"
+    timezone: str = "Europe/Berlin"
+    description: str = ""
+
+
 class SkillUpdateRequest(BaseModel):
     active: bool | None = None
     autonomy_level: int | None = None
     config: dict | None = None
     skill_md: str | None = None
+    category: str | None = None
+    icon: str | None = None
+    output_path: str | None = None
 
 
 class SkillExecuteRequest(BaseModel):
@@ -76,6 +97,9 @@ class SkillCreateRequest(BaseModel):
     parameters: dict = {}
     metadata: dict = {}
     skill_md: str | None = None
+    category: str | None = None
+    icon: str | None = None
+    output_path: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -288,6 +312,8 @@ async def _ensure_defaults_seeded(user_id: uuid.UUID, db: AsyncSession) -> None:
                     allowed_tools=seed["allowed_tools"],
                     metadata_json=seed["metadata_json"],
                     skill_md=seed.get("skill_md"),
+                    category=seed.get("category"),
+                    icon=seed.get("icon"),
                     active=True,
                     autonomy_level=3,
                     config={},
@@ -319,6 +345,15 @@ async def _ensure_defaults_seeded(user_id: uuid.UUID, db: AsyncSession) -> None:
                 if existing.skill_md != new_skill_md and new_skill_md is not None:
                     existing.skill_md = new_skill_md
                     needs_update = True
+                # Sync category and icon for defaults
+                seed_cat = seed.get("category")
+                if existing.category != seed_cat and seed_cat is not None:
+                    existing.category = seed_cat
+                    needs_update = True
+                seed_icon = seed.get("icon")
+                if existing.icon != seed_icon and seed_icon is not None:
+                    existing.icon = seed_icon
+                    needs_update = True
                 if needs_update:
                     db.add(existing)
     await db.flush()
@@ -340,6 +375,9 @@ def _cfg_to_dict(cfg: SkillConfig, execution_stats: dict | None = None) -> dict:
         "parameters": cfg.parameters or {},
         "allowed_tools": cfg.allowed_tools or [],
         "is_custom": cfg.is_custom,
+        "category": cfg.category,
+        "icon": cfg.icon,
+        "output_path": cfg.output_path,
         "metadata": cfg.metadata_json or {},
         "last_execution": stats.get("last_execution"),
         "execution_count": stats.get("execution_count", 0),
@@ -460,6 +498,9 @@ async def create_skill(
         parameters=parsed_parameters,
         metadata_json=request.metadata,
         skill_md=skill_md,
+        category=request.category,
+        icon=request.icon,
+        output_path=request.output_path,
         active=True,
         autonomy_level=3,
         config={},
@@ -739,6 +780,12 @@ async def update_skill(
             update_values["system_prompt"] = parsed["instructions"]
         if parsed["parameters"]:
             update_values["parameters"] = parsed["parameters"]
+    if request.category is not None:
+        update_values["category"] = request.category
+    if request.icon is not None:
+        update_values["icon"] = request.icon
+    if request.output_path is not None:
+        update_values["output_path"] = request.output_path
 
     if update_values:
         await db.execute(
@@ -838,6 +885,65 @@ async def execute_skill(
             "duration_ms": result["duration_ms"],
             "tool_calls": result.get("tool_calls", []),
         }
+    }
+
+
+@router.post("/skills/{skill_id}/schedule")
+async def schedule_skill(
+    skill_id: str,
+    request: SkillScheduleRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a routine that executes this skill on a cron schedule."""
+    # Check skill exists
+    skill_result = await db.execute(
+        select(SkillConfig).where(
+            SkillConfig.user_id == user.id,
+            SkillConfig.skill_id == skill_id,
+        )
+    )
+    skill = skill_result.scalar_one_or_none()
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
+
+    # Check if a scheduled routine already exists for this skill
+    from models.routine import Routine, RoutineSkill as RoutineSkillModel
+    existing_result = await db.execute(
+        select(Routine)
+        .join(RoutineSkillModel, RoutineSkillModel.routine_id == Routine.id)
+        .where(
+            Routine.user_id == user.id,
+            RoutineSkillModel.skill_id == skill_id,
+            Routine.is_active == True,  # noqa: E712
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Skill '{skill_id}' hat bereits eine aktive geplante Routine: '{existing.name}'",
+        )
+
+    # Create routine via routine_service
+    from services.routine_service import routine_service
+    routine = await routine_service.create_routine(
+        db=db,
+        user_id=user.id,
+        name=f"Auto: {skill.name or skill_id}",
+        description=request.description or f"Automatische Ausfuehrung von {skill.name or skill_id}",
+        prompt=f"Fuehre den Skill '{skill_id}' aus.",
+        cron_expression=request.cron_expression,
+        timezone=request.timezone,
+        skill_ids=[skill_id],
+        max_tool_rounds=30,
+    )
+    await db.commit()
+
+    return {
+        "routine_id": str(routine.id),
+        "name": routine.name,
+        "cron": routine.cron_expression,
     }
 
 
