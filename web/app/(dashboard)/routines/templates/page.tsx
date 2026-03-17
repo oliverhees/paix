@@ -188,23 +188,39 @@ interface AIBuilderSuggestion {
 
 const CATEGORIES = [
   { value: "alle", label: "Alle" },
-  { value: "Produktivitat", label: "Produktivitat" },
-  { value: "Monitoring", label: "Monitoring" },
-  { value: "Sicherheit", label: "Sicherheit" },
-  { value: "Reporting", label: "Reporting" },
-  { value: "Daten", label: "Daten" },
-  { value: "Kommunikation", label: "Kommunikation" },
-  { value: "Lernen", label: "Lernen" },
+  { value: "productivity", label: "Produktivit\u00e4t" },
+  { value: "research", label: "Research" },
+  { value: "content", label: "Content" },
+  { value: "monitoring", label: "Monitoring" },
+  { value: "security", label: "Sicherheit" },
+  { value: "reporting", label: "Reporting" },
+  { value: "data", label: "Daten" },
+  { value: "communication", label: "Kommunikation" },
+  { value: "learning", label: "Lernen" },
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Produktivitat: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  Monitoring: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  Sicherheit: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-  Reporting: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
-  Daten: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
-  Kommunikation: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-  Lernen: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
+  productivity: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  research: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
+  content: "bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300",
+  monitoring: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  security: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  reporting: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+  data: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  communication: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  learning: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  productivity: "Produktivit\u00e4t",
+  research: "Research",
+  content: "Content",
+  monitoring: "Monitoring",
+  security: "Sicherheit",
+  reporting: "Reporting",
+  data: "Daten",
+  communication: "Kommunikation",
+  learning: "Lernen",
 };
 
 // ─── Skeleton Components ──────────────────────────────────────────────────────
@@ -299,7 +315,7 @@ function UseTemplateDialog({
             <div>
               <DialogTitle>{template.name}</DialogTitle>
               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium mt-1 ${categoryColor}`}>
-                {template.category}
+                {CATEGORY_LABELS[template.category] ?? template.category}
               </span>
             </div>
           </div>
@@ -730,7 +746,11 @@ function TemplateCard({
             <span
               className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${categoryColor}`}
             >
-              {template.category}
+              {CATEGORY_LABELS[template.category] ?? template.category}
+            </span>
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="size-3" />
+              {template.suggested_cron}
             </span>
             {template.usage_count > 0 && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -749,7 +769,7 @@ function TemplateCard({
             }}
           >
             <Sparkles className="size-3" />
-            Verwenden
+            Installieren
           </Button>
         </div>
       </CardContent>
