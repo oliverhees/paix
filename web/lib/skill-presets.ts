@@ -50,7 +50,7 @@ export const SKILL_PRESETS: SkillPreset[] = [
     category: "Produktivität",
     summary: "Morgenroutine mit Terminen, Aufgaben und Neuigkeiten",
     description:
-      "Erstellt ein personalisiertes Morgen-Briefing mit heutigen Terminen, offenen Aufgaben, Deadlines und relevanten Neuigkeiten. Kann automatisch als tägliche Routine eingerichtet werden.",
+      "Erstellt ein personalisiertes Morgen-Briefing mit heutigen Terminen, offenen Aufgaben, Deadlines und relevanten Neuigkeiten. Kann automatisch als täglicher Workflow eingerichtet werden.",
     features: [
       "Tagesübersicht",
       "Terminvorschau",

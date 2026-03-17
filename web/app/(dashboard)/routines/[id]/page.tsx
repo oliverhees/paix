@@ -544,7 +544,7 @@ function EditRoutineDialog({
         `/routines/${routine.id}`,
         body
       );
-      toast.success("Routine gespeichert.");
+      toast.success("Workflow gespeichert.");
       onSaved(data.routine);
       onOpenChange(false);
     } catch (err) {
@@ -560,9 +560,9 @@ function EditRoutineDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Routine bearbeiten</DialogTitle>
+          <DialogTitle>Workflow bearbeiten</DialogTitle>
           <DialogDescription>
-            Alle Felder der Routine anpassen.
+            Alle Felder des Workflows anpassen.
           </DialogDescription>
         </DialogHeader>
 
@@ -724,7 +724,7 @@ function EditRoutineDialog({
             <div className="space-y-0.5">
               <Label>Wiederholung bei Fehler</Label>
               <p className="text-xs text-muted-foreground">
-                Routine bei Fehler automatisch wiederholen
+                Workflow bei Fehler automatisch wiederholen
               </p>
             </div>
             <Switch
@@ -1125,7 +1125,7 @@ function AddChainDialog({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!targetRoutineId) {
-      toast.error("Bitte wahle eine Ziel-Routine.");
+      toast.error("Bitte wahle einen Ziel-Workflow.");
       return;
     }
     setSaving(true);
@@ -1157,20 +1157,20 @@ function AddChainDialog({
         <DialogHeader>
           <DialogTitle>Verkettung hinzufugen</DialogTitle>
           <DialogDescription>
-            Verkette diese Routine mit einer anderen Routine.
+            Verkette diesen Workflow mit einem anderen Workflow.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Ziel-Routine</Label>
+            <Label>Ziel-Workflow</Label>
             <Select value={targetRoutineId} onValueChange={setTargetRoutineId}>
               <SelectTrigger>
-                <SelectValue placeholder="Routine auswahlen..." />
+                <SelectValue placeholder="Workflow auswahlen..." />
               </SelectTrigger>
               <SelectContent>
                 {availableRoutines.length === 0 ? (
                   <SelectItem value="__none__" disabled>
-                    Keine weiteren Routinen vorhanden
+                    Keine weiteren Workflows vorhanden
                   </SelectItem>
                 ) : (
                   availableRoutines.map((r) => (
@@ -1204,7 +1204,7 @@ function AddChainDialog({
             <div className="space-y-0.5">
               <Label>Ergebnis weitergeben</Label>
               <p className="text-xs text-muted-foreground">
-                Ergebnis dieser Routine an Ziel-Routine ubergeben
+                Ergebnis dieses Workflows an Ziel-Workflow ubergeben
               </p>
             </div>
             <Switch checked={passResult} onCheckedChange={setPassResult} />
@@ -1304,7 +1304,7 @@ function AddWebhookDialog({
         <DialogHeader>
           <DialogTitle>Webhook hinzufugen</DialogTitle>
           <DialogDescription>
-            Sende einen HTTP-Request wenn diese Routine ausgefuhrt wird.
+            Sende einen HTTP-Request wenn dieser Workflow ausgefuhrt wird.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -1438,7 +1438,7 @@ export default function RoutineDetailPage() {
       setRoutine(data.routine);
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Fehler beim Laden der Routine.";
+        err instanceof Error ? err.message : "Fehler beim Laden des Workflows.";
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -1530,8 +1530,8 @@ export default function RoutineDetailPage() {
       setRoutine(data.routine);
       toast.success(
         data.routine.is_active
-          ? "Routine aktiviert."
-          : "Routine deaktiviert."
+          ? "Workflow aktiviert."
+          : "Workflow deaktiviert."
       );
     } catch (err) {
       const msg =
@@ -1570,7 +1570,7 @@ export default function RoutineDetailPage() {
     setDeleting(true);
     try {
       await api.delete(`/routines/${routineId}`);
-      toast.success("Routine geloscht.");
+      toast.success("Workflow geloscht.");
       router.push("/routines");
     } catch (err) {
       const msg =
@@ -1657,7 +1657,7 @@ export default function RoutineDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center gap-4 p-6">
         <AlertCircle className="size-10 text-muted-foreground" />
-        <p className="text-lg font-semibold">Routine nicht gefunden</p>
+        <p className="text-lg font-semibold">Workflow nicht gefunden</p>
         <Button
           variant="outline"
           onClick={() => router.push("/routines")}
@@ -2020,7 +2020,7 @@ export default function RoutineDetailPage() {
               <Zap className="size-8 text-muted-foreground" />
               <p className="text-sm font-medium">Noch keine Ausfuhrungen</p>
               <p className="text-xs text-muted-foreground">
-                Starte die Routine manuell oder warte auf den nachsten geplanten
+                Starte den Workflow manuell oder warte auf den nachsten geplanten
                 Lauf.
               </p>
             </div>
@@ -2093,7 +2093,7 @@ export default function RoutineDetailPage() {
               <Link2 className="size-7 text-muted-foreground" />
               <p className="text-sm font-medium">Keine Verkettungen konfiguriert</p>
               <p className="text-xs text-muted-foreground">
-                Verkette Routinen um automatische Workflows zu erstellen.
+                Verkette Workflows um automatische Ablaeufe zu erstellen.
               </p>
             </div>
           ) : (
@@ -2183,7 +2183,7 @@ export default function RoutineDetailPage() {
               <Globe className="size-7 text-muted-foreground" />
               <p className="text-sm font-medium">Keine Webhooks konfiguriert</p>
               <p className="text-xs text-muted-foreground">
-                Webhooks senden HTTP-Requests bei Routine-Ausfuhrungen.
+                Webhooks senden HTTP-Requests bei Workflow-Ausfuhrungen.
               </p>
             </div>
           ) : (
@@ -2270,9 +2270,9 @@ export default function RoutineDetailPage() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Routine loschen?</DialogTitle>
+            <DialogTitle>Workflow loschen?</DialogTitle>
             <DialogDescription>
-              Die Routine <strong>{routine.name}</strong> und alle zugehorigen
+              Der Workflow <strong>{routine.name}</strong> und alle zugehorigen
               Ausfuhrungs-Protokolle werden dauerhaft geloscht. Diese Aktion
               kann nicht ruckgangig gemacht werden.
             </DialogDescription>

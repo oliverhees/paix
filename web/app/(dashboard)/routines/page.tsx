@@ -265,15 +265,15 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         <Timer className="size-10 text-muted-foreground" />
       </div>
       <div className="space-y-1">
-        <p className="text-lg font-semibold">Keine Routinen</p>
+        <p className="text-lg font-semibold">Keine Workflows</p>
         <p className="text-sm text-muted-foreground max-w-sm">
-          Erstelle deine erste KI-Routine, um wiederkehrende Aufgaben
+          Erstelle deinen ersten KI-Workflow, um wiederkehrende Aufgaben
           automatisch ausfuhren zu lassen.
         </p>
       </div>
       <Button onClick={onAdd} className="gap-2">
         <Plus className="size-4" />
-        Erste Routine erstellen
+        Ersten Workflow erstellen
       </Button>
     </div>
   );
@@ -587,7 +587,7 @@ function CreateRoutineDialog({
         model,
         tags: tags.length > 0 ? tags : null,
       });
-      toast.success("Routine erstellt.");
+      toast.success("Workflow erstellt.");
       resetForm();
       onOpenChange(false);
       onCreated();
@@ -603,9 +603,9 @@ function CreateRoutineDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Neue Routine</DialogTitle>
+          <DialogTitle>Neuer Workflow</DialogTitle>
           <DialogDescription>
-            Erstelle eine KI-gesteuerte Routine fur wiederkehrende Aufgaben.
+            Erstelle einen KI-gesteuerten Workflow fur wiederkehrende Aufgaben.
           </DialogDescription>
         </DialogHeader>
 
@@ -627,7 +627,7 @@ function CreateRoutineDialog({
             <Label htmlFor="routine-desc">Beschreibung (optional)</Label>
             <Textarea
               id="routine-desc"
-              placeholder="Kurze Beschreibung der Routine..."
+              placeholder="Kurze Beschreibung des Workflows..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
@@ -784,7 +784,7 @@ function ImportDialog({
         for (const r of routines) {
           if (!r.name || !r.prompt || !r.cron_expression) {
             throw new Error(
-              `Routine "${r.name || "unbenannt"}" fehlt name, prompt oder cron_expression`
+              `Workflow "${r.name || "unbenannt"}" fehlt name, prompt oder cron_expression`
             );
           }
         }
@@ -805,7 +805,7 @@ function ImportDialog({
       const result = await api.post<{ imported: number }>("/routines/import", {
         routines: preview,
       });
-      toast.success(`${result.imported} Routinen importiert (inaktiv)`);
+      toast.success(`${result.imported} Workflows importiert (inaktiv)`);
       onOpenChange(false);
       onImported();
       setFile(null);
@@ -830,10 +830,10 @@ function ImportDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Routinen importieren</DialogTitle>
+          <DialogTitle>Workflows importieren</DialogTitle>
           <DialogDescription>
-            Lade eine JSON-Datei hoch, die zuvor exportierte Routinen enthalt.
-            Importierte Routinen starten inaktiv.
+            Lade eine JSON-Datei hoch, die zuvor exportierte Workflows enthalt.
+            Importierte Workflows starten inaktiv.
           </DialogDescription>
         </DialogHeader>
 
@@ -849,7 +849,7 @@ function ImportDialog({
 
           {preview && (
             <div className="rounded-md border p-3 space-y-2">
-              <p className="text-sm font-medium">{preview.length} Routinen gefunden:</p>
+              <p className="text-sm font-medium">{preview.length} Workflows gefunden:</p>
               {preview.map((r, i) => (
                 <div key={i} className="flex items-center justify-between text-sm">
                   <span>{r.name}</span>
@@ -870,7 +870,7 @@ function ImportDialog({
             ) : (
               <Upload className="size-4 mr-1" />
             )}
-            {preview ? `${preview.length} Routinen importieren` : "Importieren"}
+            {preview ? `${preview.length} Workflows importieren` : "Importieren"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -907,7 +907,7 @@ export default function RoutinesPage() {
       setRoutines(data.routines ?? []);
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Fehler beim Laden der Routinen.";
+        err instanceof Error ? err.message : "Fehler beim Laden der Workflows.";
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -920,7 +920,7 @@ export default function RoutinesPage() {
 
   async function handleDelete(id: string) {
     await api.delete(`/routines/${id}`);
-    toast.success("Routine geloscht.");
+    toast.success("Workflow geloscht.");
     await fetchRoutines(filter);
   }
 
@@ -930,13 +930,13 @@ export default function RoutinesPage() {
       { method: "PATCH", body: JSON.stringify({}) }
     );
     const updated = data.routine;
-    toast.success(updated.is_active ? "Routine aktiviert." : "Routine deaktiviert.");
+    toast.success(updated.is_active ? "Workflow aktiviert." : "Workflow deaktiviert.");
     await fetchRoutines(filter);
   }
 
   async function handleRun(id: string) {
     await api.post(`/routines/${id}/run`, {});
-    toast.success("Routine gestartet.");
+    toast.success("Workflow gestartet.");
   }
 
   // ─── Selection Helpers ───
@@ -978,7 +978,7 @@ export default function RoutinesPage() {
         action: "activate",
         routine_ids: Array.from(selectedIds),
       });
-      toast.success(`${selectedIds.size} Routinen aktiviert`);
+      toast.success(`${selectedIds.size} Workflows aktiviert`);
       setSelectedIds(new Set());
       setSelectionMode(false);
       fetchRoutines(filter);
@@ -993,7 +993,7 @@ export default function RoutinesPage() {
         action: "deactivate",
         routine_ids: Array.from(selectedIds),
       });
-      toast.success(`${selectedIds.size} Routinen deaktiviert`);
+      toast.success(`${selectedIds.size} Workflows deaktiviert`);
       setSelectedIds(new Set());
       setSelectionMode(false);
       fetchRoutines(filter);
@@ -1005,7 +1005,7 @@ export default function RoutinesPage() {
   async function handleBulkDelete() {
     if (
       !window.confirm(
-        `${selectedIds.size} Routine${selectedIds.size === 1 ? "" : "n"} unwiderruflich loschen?`
+        `${selectedIds.size} Workflow${selectedIds.size === 1 ? "" : "s"} unwiderruflich loschen?`
       )
     ) {
       return;
@@ -1015,7 +1015,7 @@ export default function RoutinesPage() {
         action: "delete",
         routine_ids: Array.from(selectedIds),
       });
-      toast.success(`${selectedIds.size} Routinen geloscht`);
+      toast.success(`${selectedIds.size} Workflows geloscht`);
       setSelectedIds(new Set());
       setSelectionMode(false);
       fetchRoutines(filter);
@@ -1054,7 +1054,7 @@ export default function RoutinesPage() {
       {/* Page Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Routinen</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Workflows</h1>
           <p className="text-muted-foreground text-sm mt-1">
             KI-gesteuerte wiederkehrende Aufgaben
           </p>
@@ -1130,7 +1130,7 @@ export default function RoutinesPage() {
             onClick={() => setDialogOpen(true)}
           >
             <Plus className="size-4" />
-            <span className="hidden sm:inline">Neue Routine</span>
+            <span className="hidden sm:inline">Neuer Workflow</span>
             <span className="sm:hidden">Neu</span>
           </Button>
         </div>

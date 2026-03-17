@@ -310,7 +310,7 @@ function PerformanceTable({ data }: { data: RoutinePerformance[] }) {
   if (data.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">
-        Keine Routinen vorhanden
+        Keine Workflows vorhanden
       </p>
     );
   }
@@ -344,7 +344,7 @@ function PerformanceTable({ data }: { data: RoutinePerformance[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b">
-            <Th field="routine_name">Routine</Th>
+            <Th field="routine_name">Workflow</Th>
             <Th field="run_count" align="right">Ausführungen</Th>
             <Th field="success_rate" align="right">Erfolgsrate</Th>
             <Th field="avg_duration_ms" align="right">Ø Dauer</Th>
@@ -426,13 +426,13 @@ export default function RoutinesAnalyticsPage() {
           size="icon"
           className="shrink-0 mt-0.5"
           onClick={() => router.push("/routines")}
-          aria-label="Zuruck zu Routinen"
+          aria-label="Zuruck zu Workflows"
         >
           <ArrowLeft className="size-4" />
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Routine-Statistiken
+            Workflow-Statistiken
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Ubersicht uber Ausfuhrungen, Kosten und Performance
@@ -489,7 +489,7 @@ export default function RoutinesAnalyticsPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold">
-                Performance pro Routine
+                Performance pro Workflow
               </CardTitle>
             </CardHeader>
             <CardContent>

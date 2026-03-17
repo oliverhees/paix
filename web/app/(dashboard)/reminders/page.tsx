@@ -154,7 +154,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       <div className="space-y-1">
         <p className="text-lg font-semibold">Keine Erinnerungen</p>
         <p className="text-sm text-muted-foreground max-w-sm">
-          Erstelle deine erste Erinnerung oder wiederkehrende Routine, um den
+          Erstelle deine erste Erinnerung oder einen wiederkehrenden Workflow, um den
           Uberblick zu behalten.
         </p>
       </div>
@@ -429,7 +429,7 @@ function CreateReminderDialog({
         <DialogHeader>
           <DialogTitle>Neue Erinnerung</DialogTitle>
           <DialogDescription>
-            Erstelle eine einmalige Erinnerung oder eine wiederkehrende Routine.
+            Erstelle eine einmalige Erinnerung oder einen wiederkehrenden Workflow.
           </DialogDescription>
         </DialogHeader>
 
@@ -652,7 +652,7 @@ export default function RemindersPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Erinnerungen</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Erstelle Erinnerungen und wiederkehrende Routinen
+            Erstelle Erinnerungen und wiederkehrende Workflows
           </p>
         </div>
 

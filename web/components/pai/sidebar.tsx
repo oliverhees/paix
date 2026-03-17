@@ -75,7 +75,7 @@ const navItems = [
     icon: FolderOpen,
   },
   {
-    title: "Routinen",
+    title: "Workflows",
     href: "/routines",
     icon: Timer,
   },

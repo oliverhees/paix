@@ -23,7 +23,7 @@ const routeLabels: Record<string, string> = {
   "": "Home",
   chat: "Chat",
   telos: "TELOS",
-  routines: "Routinen",
+  routines: "Workflows",
   reminders: "Erinnerungen",
   skills: "Skills",
   settings: "Einstellungen",

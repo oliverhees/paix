@@ -993,7 +993,7 @@ function BraveSearchKeySection() {
             Brave Search API Key
           </p>
           <p className="text-xs text-muted-foreground">
-            Fuer Websuchen im Chat und in Routinen.{" "}
+            Fuer Websuchen im Chat und in Workflows.{" "}
             <a
               href="https://brave.com/search/api/"
               target="_blank"

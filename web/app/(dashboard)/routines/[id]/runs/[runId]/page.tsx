@@ -373,7 +373,7 @@ export default function RunDetailPage() {
           className="gap-2"
         >
           <ArrowLeft className="size-4" />
-          Zuruck zur Routine
+          Zuruck zum Workflow
         </Button>
       </div>
     );
@@ -391,7 +391,7 @@ export default function RunDetailPage() {
           size="icon"
           onClick={() => router.push(`/routines/${routineId}`)}
           className="shrink-0"
-          aria-label="Zuruck zur Routine"
+          aria-label="Zuruck zum Workflow"
         >
           <ArrowLeft className="size-4" />
         </Button>
@@ -618,7 +618,7 @@ export default function RunDetailPage() {
 
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">
-                Routine-ID
+                Workflow-ID
               </p>
               <p className="font-mono text-xs truncate">{run.routine_id}</p>
             </div>

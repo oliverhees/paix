@@ -171,14 +171,14 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Routinen — Full Width */}
+      {/* Workflows — Full Width */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Timer className="size-5" />
-                Aktive Routinen
+                Aktive Workflows
               </CardTitle>
               <CardDescription>Naechste geplante Ausfuehrungen</CardDescription>
             </div>
@@ -197,7 +197,7 @@ export default function DashboardPage() {
           {loading ? (
             <SectionSkeleton />
           ) : routines.length === 0 ? (
-            <EmptySection icon={Timer} text="Keine aktiven Routinen" />
+            <EmptySection icon={Timer} text="Keine aktiven Workflows" />
           ) : (
             <div className="space-y-2.5">
               {routines.map((r) => (

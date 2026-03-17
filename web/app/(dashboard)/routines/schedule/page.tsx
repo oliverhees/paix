@@ -128,7 +128,7 @@ function EmptyState() {
       <div className="space-y-1">
         <p className="text-lg font-semibold">Keine geplanten Ausführungen</p>
         <p className="text-sm text-muted-foreground max-w-sm">
-          Keine aktiven Routinen geplant. Aktiviere Routinen, um sie hier zu
+          Keine aktiven Workflows geplant. Aktiviere Workflows, um sie hier zu
           sehen.
         </p>
       </div>
@@ -170,14 +170,14 @@ export default function SchedulePage() {
           size="icon"
           className="shrink-0 mt-0.5"
           onClick={() => router.push("/routines")}
-          aria-label="Zurück zu Routinen"
+          aria-label="Zurück zu Workflows"
         >
           <ArrowLeft className="size-4" />
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Zeitplan</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Nächste geplante Ausführungen deiner aktiven Routinen
+            Nächste geplante Ausführungen deiner aktiven Workflows
           </p>
         </div>
       </div>

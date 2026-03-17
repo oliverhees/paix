@@ -275,7 +275,7 @@ function UseTemplateDialog({
         `/routines/from-template/${template.id}`,
         body
       );
-      toast.success("Routine aus Vorlage erstellt.");
+      toast.success("Workflow aus Vorlage erstellt.");
       onOpenChange(false);
       router.push(`/routines/${result.id}`);
     } catch (err) {
@@ -413,7 +413,7 @@ function UseTemplateDialog({
             ) : (
               <>
                 <Check className="size-3.5" />
-                Routine erstellen
+                Workflow erstellen
               </>
             )}
           </Button>
@@ -437,7 +437,7 @@ function AIBuilderSection() {
 
   async function handleGenerate() {
     if (!description.trim()) {
-      toast.error("Bitte beschreibe deine gewunschte Routine.");
+      toast.error("Bitte beschreibe deinen gewunschten Workflow.");
       return;
     }
     setGenerating(true);
@@ -473,7 +473,7 @@ function AIBuilderSection() {
         tags: data.tags,
         skill_ids: data.skill_ids,
       });
-      toast.success("Routine erfolgreich erstellt.");
+      toast.success("Workflow erfolgreich erstellt.");
       router.push(`/routines/${result.id}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Fehler beim Erstellen.";
@@ -494,14 +494,14 @@ function AIBuilderSection() {
         <div>
           <h2 className="font-semibold text-base">KI-Assistent</h2>
           <p className="text-xs text-muted-foreground">
-            Beschreibe deine Routine — die KI konfiguriert alles automatisch
+            Beschreibe deinen Workflow — die KI konfiguriert alles automatisch
           </p>
         </div>
       </div>
 
       <div className="space-y-2">
         <Textarea
-          placeholder="Beschreibe deine gewunschte Routine... z.B. 'Jeden Morgen eine Zusammenfassung meiner E-Mails und Kalendertermine erstellen'"
+          placeholder="Beschreibe deinen gewunschten Workflow... z.B. 'Jeden Morgen eine Zusammenfassung meiner E-Mails und Kalendertermine erstellen'"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
@@ -673,7 +673,7 @@ function AIBuilderSection() {
             ) : (
               <>
                 <Check className="size-3.5" />
-                Routine erstellen
+                Workflow erstellen
               </>
             )}
           </Button>
@@ -834,14 +834,14 @@ export default function TemplatesPage() {
           onClick={() => router.push("/routines")}
         >
           <ChevronLeft className="size-4" />
-          Routinen
+          Workflows
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Routine-Vorlagen
+            Workflow-Vorlagen
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Starte mit einer Vorlage oder lass die KI deine Routine erstellen
+            Starte mit einer Vorlage oder lass die KI deinen Workflow erstellen
           </p>
         </div>
       </div>
