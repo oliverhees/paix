@@ -88,6 +88,30 @@ import {
   type SkillPreset,
 } from "@/lib/skill-presets";
 
+// ─── Category Labels (German) ────────────────────────────────────────────────
+
+const CATEGORY_LABELS: Record<string, string> = {
+  productivity: "Produktivitaet",
+  writing: "Schreiben",
+  communication: "Kommunikation",
+  creativity: "Kreativitaet",
+  research: "Recherche",
+  automation: "Automatisierung",
+  analytics: "Analytik",
+  "": "Allgemein",
+};
+
+const ALL_CATEGORIES = [
+  { key: "", label: "Alle" },
+  { key: "productivity", label: "Produktivitaet" },
+  { key: "writing", label: "Schreiben" },
+  { key: "communication", label: "Kommunikation" },
+  { key: "creativity", label: "Kreativitaet" },
+  { key: "research", label: "Recherche" },
+  { key: "automation", label: "Automatisierung" },
+  { key: "analytics", label: "Analytik" },
+];
+
 // ─── Simple Markdown Renderer ────────────────────────────────────────────────
 
 function renderMarkdownToHtml(md: string): string {
@@ -553,8 +577,8 @@ function SkillCard({
               className="flex items-center gap-3 flex-1 min-w-0"
               onClick={() => onSelect(skill.id)}
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Zap className="size-5" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xl">
+                {skill.icon || "\u26a1"}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -566,6 +590,12 @@ function SkillCard({
                     className="text-[10px] px-1.5 py-0 h-5 shrink-0"
                   >
                     {skill.active ? "Aktiv" : "Inaktiv"}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 h-5 shrink-0 capitalize"
+                  >
+                    {CATEGORY_LABELS[skill.category ?? ""] ?? "Allgemein"}
                   </Badge>
                   {hasSkillMd && (
                     <Badge
@@ -2474,6 +2504,12 @@ export default function SkillsPage() {
   const [aiChatOpen, setAiChatOpen] = useState(false);
   const [installing, setInstalling] = useState<string | null>(null);
   const [presetSearch, setPresetSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+
+  const filteredSkills = useMemo(() => {
+    if (!categoryFilter) return skills;
+    return skills.filter((s) => (s.category ?? "") === categoryFilter);
+  }, [skills, categoryFilter]);
 
   const fetchSkills = useCallback(async () => {
     setLoading(true);
@@ -2743,6 +2779,32 @@ export default function SkillsPage() {
 
         {/* ── Meine Skills Tab ── */}
         <TabsContent value="meine" className="space-y-3 mt-4">
+          {/* Category Filter Chips */}
+          {skills.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {ALL_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.key}
+                  onClick={() => setCategoryFilter(cat.key)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    categoryFilter === cat.key
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {cat.label}
+                  {cat.key === ""
+                    ? ` (${skills.length})`
+                    : (() => {
+                        const count = skills.filter(
+                          (s) => (s.category ?? "") === cat.key
+                        ).length;
+                        return count > 0 ? ` (${count})` : "";
+                      })()}
+                </button>
+              ))}
+            </div>
+          )}
           {loading ? (
             <SkillListSkeleton />
           ) : skills.length === 0 ? (
@@ -2762,8 +2824,14 @@ export default function SkillsPage() {
                 Skill erstellen
               </Button>
             </div>
+          ) : filteredSkills.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-sm text-muted-foreground">
+                Keine Skills in dieser Kategorie.
+              </p>
+            </div>
           ) : (
-            skills.map((skill) => (
+            filteredSkills.map((skill) => (
               <SkillCard
                 key={skill.id}
                 skill={skill}

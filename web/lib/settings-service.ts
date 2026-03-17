@@ -168,6 +168,9 @@ export interface SkillDetail {
   allowed_tools?: string[];
   is_custom?: boolean;
   skill_md?: string | null;
+  category?: string | null;
+  icon?: string | null;
+  output_path?: string | null;
 }
 
 export interface SkillUpdateRequest {
