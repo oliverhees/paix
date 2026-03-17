@@ -23,6 +23,15 @@ from models.user import User
 router = APIRouter()
 
 
+def _mask_api_key(key: str | None) -> str | None:
+    """Mask an API key for safe display: show first 4 + last 4 chars."""
+    if not key:
+        return None
+    if len(key) <= 8:
+        return "****"
+    return f"{key[:4]}...{key[-4:]}"
+
+
 # ──────────────────────────────────────────────
 # Request / Response Schemas
 # ──────────────────────────────────────────────
@@ -73,6 +82,7 @@ class UserMeResponse(BaseModel):
     persona_personality: str | None = None
     persona_about_user: str | None = None
     persona_communication: str | None = None
+    brave_search_api_key: str | None = None
     created_at: datetime | None = None
 
 
@@ -239,6 +249,7 @@ async def get_me(user: User = Depends(get_current_user)):
         persona_personality=user.persona_personality,
         persona_about_user=user.persona_about_user,
         persona_communication=user.persona_communication,
+        brave_search_api_key=_mask_api_key(user.brave_search_api_key),
         created_at=user.created_at,
     )
 
@@ -252,6 +263,7 @@ class UpdateMeRequest(BaseModel):
     persona_personality: str | None = None
     persona_about_user: str | None = None
     persona_communication: str | None = None
+    brave_search_api_key: str | None = None
 
 
 @router.put("/auth/me", response_model=UserMeResponse)
@@ -277,6 +289,9 @@ async def update_me(
         user.persona_about_user = request.persona_about_user
     if request.persona_communication is not None:
         user.persona_communication = request.persona_communication
+    if request.brave_search_api_key is not None:
+        # Allow clearing by sending empty string
+        user.brave_search_api_key = request.brave_search_api_key or None
     db.add(user)
     await db.flush()
     return UserMeResponse(
@@ -290,5 +305,6 @@ async def update_me(
         persona_personality=user.persona_personality,
         persona_about_user=user.persona_about_user,
         persona_communication=user.persona_communication,
+        brave_search_api_key=_mask_api_key(user.brave_search_api_key),
         created_at=user.created_at,
     )

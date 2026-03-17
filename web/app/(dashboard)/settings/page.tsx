@@ -54,6 +54,7 @@ import {
   Unlink,
   ExternalLink,
   RefreshCw,
+  Globe,
 } from "lucide-react";
 import {
   settingsService,
@@ -787,6 +788,134 @@ const INITIAL_PROVIDERS: Omit<ProviderKeyState, "keyHint" | "inputValue" | "show
   },
 ];
 
+function BraveSearchKeySection() {
+  const { profile, fetchProfile } = useSettingsStore();
+  const [inputValue, setInputValue] = useState("");
+  const [showInput, setShowInput] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const hasKey = !!profile?.brave_search_api_key;
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      await api.put("/auth/me", { brave_search_api_key: inputValue.trim() });
+      toast.success("Brave Search API Key gespeichert");
+      setInputValue("");
+      fetchProfile();
+    } catch {
+      toast.error("Fehler beim Speichern");
+    } finally {
+      setSaving(false);
+    }
+  }, [inputValue, fetchProfile]);
+
+  const handleDelete = useCallback(async () => {
+    setSaving(true);
+    try {
+      await api.put("/auth/me", { brave_search_api_key: "" });
+      toast.success("Brave Search API Key entfernt");
+      setInputValue("");
+      fetchProfile();
+    } catch {
+      toast.error("Fehler beim Entfernen");
+    } finally {
+      setSaving(false);
+    }
+  }, [fetchProfile]);
+
+  return (
+    <div className="rounded-lg border p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <p className="text-sm font-semibold flex items-center gap-1.5">
+            <Globe className="h-4 w-4" />
+            Brave Search API Key
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Fuer Websuchen im Chat und in Routinen.{" "}
+            <a
+              href="https://brave.com/search/api/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              Kostenlos unter brave.com/search/api
+            </a>
+          </p>
+        </div>
+        <Badge variant={hasKey ? "success" : "secondary"}>
+          {hasKey ? (
+            <span className="flex items-center gap-1">
+              <Check className="h-3 w-3" />
+              Verbunden
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <X className="h-3 w-3" />
+              Nicht verbunden
+            </span>
+          )}
+        </Badge>
+      </div>
+
+      {hasKey && (
+        <p className="text-xs text-muted-foreground font-mono">
+          Aktuell gespeichert: <span className="text-foreground">{profile.brave_search_api_key}</span>
+        </p>
+      )}
+
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Input
+            type={showInput ? "text" : "password"}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="BSA..."
+            disabled={saving}
+            className="pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShowInput(!showInput)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            tabIndex={-1}
+          >
+            {showInput ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={saving || !inputValue.trim()}
+          className="gap-1.5 shrink-0"
+        >
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          Speichern
+        </Button>
+
+        {hasKey && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleDelete}
+            disabled={saving}
+            className="gap-1.5 shrink-0 text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Löschen
+          </Button>
+        )}
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Ohne eigenen Key wird DuckDuckGo als Fallback genutzt (limitiert).
+      </p>
+    </div>
+  );
+}
+
 function APIKeysSection() {
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderKeyState[]>(
@@ -1169,6 +1298,11 @@ function APIKeysSection() {
             )}
           </div>
         ))}
+
+        <Separator />
+
+        {/* Brave Search API Key */}
+        <BraveSearchKeySection />
 
         {/* Security info box */}
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">

@@ -452,7 +452,19 @@ class SkillService:
             query = tool_input.get("query", "")
             max_results = min(tool_input.get("max_results", 5), 5)  # Cap at 5
 
-            brave_api_key = os.environ.get("BRAVE_SEARCH_API_KEY")
+            # Priority: User's key > Environment key
+            brave_api_key = None
+            if db and user_id:
+                from models.user import User as UserModel
+                user_result = await db.execute(
+                    select(UserModel).where(UserModel.id == user_id)
+                )
+                user_obj = user_result.scalar_one_or_none()
+                if user_obj and user_obj.brave_search_api_key:
+                    brave_api_key = user_obj.brave_search_api_key
+
+            if not brave_api_key:
+                brave_api_key = os.environ.get("BRAVE_SEARCH_API_KEY")
 
             if brave_api_key:
                 # Brave Search API — reliable, no rate limits, designed for AI agents

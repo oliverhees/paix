@@ -53,6 +53,7 @@ export interface UserMeResponse {
   persona_personality?: string | null;
   persona_about_user?: string | null;
   persona_communication?: string | null;
+  brave_search_api_key?: string | null;
 }
 
 // ─── Agent State ───
