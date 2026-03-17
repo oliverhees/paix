@@ -25,6 +25,8 @@ import {
   Plus,
   ExternalLink,
   MessageSquare,
+  ArrowDown,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -2068,93 +2070,127 @@ export default function RoutineDetailPage() {
         </CardContent>
       </Card>
 
-      {/* ─ Verkettungen ─ */}
+      {/* ─ Workflow-Pipeline (Verkettungen) ─ */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Link2 className="size-4 text-muted-foreground" />
-              Verkettungen
+              Workflow-Pipeline
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={() => setAddChainOpen(true)}
-            >
-              <Plus className="size-3" />
-              Verkettung hinzufugen
-            </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {chains.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
-              <Link2 className="size-7 text-muted-foreground" />
-              <p className="text-sm font-medium">Keine Verkettungen konfiguriert</p>
+        <CardContent>
+          <div className="flex flex-col items-center">
+            {/* Source Routine (this workflow) */}
+            <div className="w-full max-w-sm border-2 border-primary/30 bg-primary/5 rounded-xl px-4 py-3 text-center">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Zap className="size-4 text-primary" />
+                <span className="text-sm font-semibold">{routine.name}</span>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Verkette Workflows um automatische Ablaeufe zu erstellen.
+                {routine.cron_human}
               </p>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {chains.map((chain) => {
-                const targetName =
-                  allRoutines.find((r) => r.id === chain.target_routine_id)?.name ??
-                  chain.target_routine_id;
-                const triggerColor =
-                  chain.trigger_on === "success"
-                    ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
-                    : chain.trigger_on === "failure"
-                    ? "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
-                    : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300";
+
+            {/* Chain steps */}
+            {chains
+              .sort((a, b) => a.execution_order - b.execution_order)
+              .map((chain) => {
+                const targetRoutine = allRoutines.find(
+                  (r) => r.id === chain.target_routine_id
+                );
+                const targetName = targetRoutine?.name ?? chain.target_routine_id;
                 const triggerLabel =
                   chain.trigger_on === "success"
-                    ? "Erfolg"
+                    ? "Bei Erfolg"
                     : chain.trigger_on === "failure"
-                    ? "Fehler"
+                    ? "Bei Fehler"
                     : "Immer";
+                const triggerColor =
+                  chain.trigger_on === "success"
+                    ? "text-green-600 dark:text-green-400"
+                    : chain.trigger_on === "failure"
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-blue-600 dark:text-blue-400";
+                const connectorColor =
+                  chain.trigger_on === "success"
+                    ? "border-green-400 dark:border-green-600"
+                    : chain.trigger_on === "failure"
+                    ? "border-red-400 dark:border-red-600"
+                    : "border-blue-400 dark:border-blue-600";
+
                 return (
-                  <div
-                    key={chain.id}
-                    className="flex items-center gap-3 border rounded-lg px-3 py-2.5 flex-wrap"
-                  >
-                    <span className="text-xs font-medium text-muted-foreground shrink-0">
-                      {routine.name}
-                    </span>
-                    <ChevronRight className="size-3 text-muted-foreground shrink-0" />
-                    <span className="text-xs font-medium truncate flex-1 min-w-0">
-                      {targetName}
-                    </span>
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${triggerColor}`}
-                    >
-                      {triggerLabel}
-                    </span>
-                    {chain.pass_result && (
-                      <Badge variant="outline" className="text-xs h-5 shrink-0">
-                        Ergebnis
-                      </Badge>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDeleteChain(chain.id)}
-                      disabled={deletingChainId === chain.id}
-                      aria-label="Verkettung entfernen"
-                    >
-                      {deletingChainId === chain.id ? (
-                        <RefreshCw className="size-3 animate-spin" />
-                      ) : (
-                        <Trash2 className="size-3" />
-                      )}
-                    </Button>
+                  <div key={chain.id} className="flex flex-col items-center w-full max-w-sm">
+                    {/* Connector line with trigger label */}
+                    <div className="flex flex-col items-center py-1">
+                      <div className={`w-px h-4 border-l-2 border-dashed ${connectorColor}`} />
+                      <span className={`text-[10px] font-medium ${triggerColor} py-0.5`}>
+                        {triggerLabel}
+                      </span>
+                      <ArrowDown className={`size-3.5 ${triggerColor}`} />
+                    </div>
+
+                    {/* Target routine card */}
+                    <div className="w-full border rounded-xl px-4 py-3 relative group hover:border-primary/40 transition-colors">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Bot className="size-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium truncate">{targetName}</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteChain(chain.id)}
+                          disabled={deletingChainId === chain.id}
+                          aria-label="Verkettung entfernen"
+                        >
+                          {deletingChainId === chain.id ? (
+                            <RefreshCw className="size-3 animate-spin" />
+                          ) : (
+                            <X className="size-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {chain.pass_result && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+                            Ergebnis weitergeben
+                          </Badge>
+                        )}
+                        {!targetRoutine?.is_active && targetRoutine && (
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                            Inaktiv
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 );
               })}
+
+            {/* Add chain button */}
+            <div className="flex flex-col items-center w-full max-w-sm">
+              {chains.length > 0 && (
+                <div className="flex flex-col items-center py-1">
+                  <div className="w-px h-4 border-l-2 border-dashed border-muted-foreground/30" />
+                  <ArrowDown className="size-3.5 text-muted-foreground/30" />
+                </div>
+              )}
+              <button
+                onClick={() => setAddChainOpen(true)}
+                className="w-full border-2 border-dashed border-muted-foreground/25 rounded-xl px-4 py-3 text-center hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Plus className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <span className="text-sm text-muted-foreground group-hover:text-primary transition-colors">
+                    Workflow verketten
+                  </span>
+                </div>
+              </button>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
