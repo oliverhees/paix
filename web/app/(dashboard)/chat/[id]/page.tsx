@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Metadata } from "next";
 
 import AIChatSidebar from "../components/ai-chat-sidebar";
@@ -14,7 +15,9 @@ export default function Page() {
     <div className="relative flex h-[calc(100vh-var(--header-height)-3rem)] rounded-md lg:border">
       <AIChatSidebar />
       <div className="flex w-full grow flex-col">
-        <AIChatInterface />
+        <Suspense>
+          <AIChatInterface />
+        </Suspense>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowUpIcon,
   BrainIcon,
@@ -129,6 +129,7 @@ export default function AIChatInterface() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
 
   // ─── Zustand Store ───
   const messages = useChatStore((s) => s.messages);
@@ -163,6 +164,15 @@ export default function AIChatInterface() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
+
+  // Pre-fill prompt from URL context parameter (e.g. from skill history)
+  useEffect(() => {
+    const context = searchParams.get("context");
+    if (context) {
+      setPrompt(context);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const streamResponse = async () => {
     if (isStreaming) return;

@@ -32,8 +32,10 @@ import {
   Info,
   History,
   AlertCircle,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -2039,6 +2041,7 @@ function SkillHistoryTab() {
   const [offset, setOffset] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const limit = 20;
+  const router = useRouter();
 
   const fetchExecutions = useCallback(async (currentOffset: number) => {
     setLoading(true);
@@ -2200,6 +2203,24 @@ function SkillHistoryTab() {
                       <p className="text-sm bg-red-500/10 text-red-400 rounded-md p-2">
                         {ex.error_message}
                       </p>
+                    </div>
+                  )}
+                  {ex.output_summary && (
+                    <div className="pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const params = new URLSearchParams({
+                            context: `Hier ist das Ergebnis meines "${ex.skill_name}" Skills:\n\n${ex.output_summary}`,
+                          });
+                          router.push(`/chat?${params.toString()}`);
+                        }}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+                        Im Chat oeffnen
+                      </Button>
                     </div>
                   )}
                 </div>
