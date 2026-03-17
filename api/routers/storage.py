@@ -225,6 +225,10 @@ async def upload_file(
     key = f"users/{user.id}/{base}/{filename}" if base else f"users/{user.id}/{filename}"
     ct = file.content_type or "application/octet-stream"
 
+    # Ensure UTF-8 charset for text content types (fixes Umlaut encoding)
+    if ct.startswith("text/") and "charset" not in ct:
+        ct += "; charset=utf-8"
+
     client.put_object(Bucket=bucket, Key=key, Body=content, ContentType=ct)
 
     strip = f"users/{user.id}/"
@@ -268,6 +272,9 @@ async def download_file(
         resp = client.get_object(Bucket=bucket, Key=key)
         data = resp["Body"].read()
         ct = resp.get("ContentType", "application/octet-stream")
+        # Ensure UTF-8 charset for text downloads (fixes Umlaut rendering)
+        if ct.startswith("text/") and "charset" not in ct:
+            ct += "; charset=utf-8"
         filename = path.split("/")[-1]
         return Response(
             content=data,

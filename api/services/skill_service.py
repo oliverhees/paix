@@ -738,6 +738,7 @@ class SkillService:
         output_text = ""
         error_message = None
         status = "success"
+        tool_calls: list[dict] = []
 
         try:
             user_api_key = await get_user_anthropic_key(user_id, db)
@@ -757,6 +758,7 @@ class SkillService:
                 tool_executor=tool_executor,
             )
             output_text = result.text
+            tool_calls = result.tool_calls or []
         except Exception as exc:
             status = "error"
             error_message = str(exc)
@@ -787,6 +789,7 @@ class SkillService:
             "error": error_message,
             "duration_ms": duration_ms,
             "execution_id": str(execution.id),
+            "tool_calls": tool_calls,
         }
 
     async def _execute_mcp_tool(
@@ -978,6 +981,9 @@ class SkillService:
                 path = tool_input.get("path", "")
                 content = tool_input.get("content", "")
                 ct = tool_input.get("content_type", "text/plain")
+                # Ensure UTF-8 charset for text content types
+                if ct.startswith("text/") and "charset" not in ct:
+                    ct += "; charset=utf-8"
                 key = user_prefix + path.lstrip("/")
                 data = content.encode("utf-8")
                 s3.put_object(Bucket=bucket, Key=key, Body=data, ContentType=ct)

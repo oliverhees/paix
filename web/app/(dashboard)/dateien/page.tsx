@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Info,
   X,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,6 +51,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 import {
   storageService,
@@ -91,6 +93,13 @@ function getFileIcon(name: string) {
   if (["md", "txt", "log", "csv", "pdf", "doc", "docx", "xls", "xlsx"].includes(ext))
     return FileText;
   return File;
+}
+
+const PREVIEWABLE_EXTENSIONS = ["md", "txt", "json", "csv", "log", "yaml", "yml", "toml", "xml", "sh", "sql", "py", "js", "ts", "tsx", "jsx", "css", "html"];
+
+function isPreviewable(name: string): boolean {
+  const ext = name.split(".").pop()?.toLowerCase() || "";
+  return PREVIEWABLE_EXTENSIONS.includes(ext);
 }
 
 // ─── Breadcrumb ──
@@ -218,14 +227,17 @@ function ItemRow({
   onDelete,
   onDownload,
   onMove,
+  onPreview,
 }: {
   item: StorageItem;
   onNavigate: (path: string) => void;
   onDelete: (item: StorageItem) => void;
   onDownload: (item: StorageItem) => void;
   onMove: (item: StorageItem) => void;
+  onPreview: (item: StorageItem) => void;
 }) {
   const isFolder = item.type === "folder";
+  const canPreview = !isFolder && isPreviewable(item.name);
   const Icon = isFolder ? FolderOpen : getFileIcon(item.name);
 
   return (
@@ -233,9 +245,17 @@ function ItemRow({
       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group ${
         isFolder
           ? "hover:bg-muted/70 cursor-pointer"
-          : "hover:bg-muted/50"
+          : canPreview
+            ? "hover:bg-muted/50 cursor-pointer"
+            : "hover:bg-muted/50"
       }`}
-      onClick={isFolder ? () => onNavigate(item.path) : undefined}
+      onClick={
+        isFolder
+          ? () => onNavigate(item.path)
+          : canPreview
+            ? () => onPreview(item)
+            : undefined
+      }
     >
       <Icon
         className={`size-5 shrink-0 ${
@@ -252,6 +272,19 @@ function ItemRow({
         )}
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {canPreview && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPreview(item);
+            }}
+          >
+            <Eye className="size-3.5" />
+          </Button>
+        )}
         {!isFolder && (
           <Button
             variant="ghost"
@@ -277,6 +310,12 @@ function ItemRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {canPreview && (
+              <DropdownMenuItem onClick={() => onPreview(item)}>
+                <Eye className="size-3.5 mr-2" />
+                Vorschau
+              </DropdownMenuItem>
+            )}
             {!isFolder && (
               <DropdownMenuItem onClick={() => onDownload(item)}>
                 <Download className="size-3.5 mr-2" />
@@ -315,13 +354,20 @@ export default function DateienPage() {
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [renameItem, setRenameItem] = useState<StorageItem | null>(null);
   const [renameTo, setRenameTo] = useState("");
+  const [previewItem, setPreviewItem] = useState<StorageItem | null>(null);
+  const [previewContent, setPreviewContent] = useState<string>("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
 
   const fetchStatus = useCallback(async () => {
+    setStatusLoading(true);
     try {
       const s = await storageService.getStatus();
       setStatus(s);
     } catch {
       setStatus({ connected: false, error: "Verbindung fehlgeschlagen", endpoint: null, bucket: null });
+    } finally {
+      setStatusLoading(false);
     }
   }, []);
 
@@ -443,6 +489,42 @@ export default function DateienPage() {
     }
   }
 
+  async function handlePreview(item: StorageItem) {
+    setPreviewItem(item);
+    setPreviewContent("");
+    setPreviewLoading(true);
+    try {
+      const { url } = await storageService.getDownloadUrl(item.path);
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error("Download fehlgeschlagen");
+      const text = await resp.text();
+      setPreviewContent(text);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Vorschau fehlgeschlagen";
+      setPreviewContent(`Fehler: ${msg}`);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  // ── Initial Loading (status check in progress) ──
+  if (statusLoading && !status) {
+    return (
+      <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dateien</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Hetzner Object Storage — Dateien, Projekte und Dokumente
+          </p>
+        </div>
+        <div className="flex items-center gap-3 py-12 justify-center">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Verbinde mit Object Storage...</span>
+        </div>
+      </div>
+    );
+  }
+
   // ── Not Configured ──
   if (status && !status.connected) {
     return (
@@ -553,6 +635,10 @@ export default function DateienPage() {
       {/* File List */}
       {loading ? (
         <div className="space-y-2">
+          <div className="flex items-center gap-2 py-1">
+            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Dateien werden geladen...</span>
+          </div>
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-12 w-full rounded-lg" />
           ))}
@@ -576,6 +662,7 @@ export default function DateienPage() {
               onNavigate={navigateTo}
               onDelete={handleDelete}
               onDownload={handleDownload}
+              onPreview={handlePreview}
               onMove={(item) => {
                 setRenameItem(item);
                 setRenameTo(item.name);
@@ -589,6 +676,7 @@ export default function DateienPage() {
               onNavigate={navigateTo}
               onDelete={handleDelete}
               onDownload={handleDownload}
+              onPreview={handlePreview}
               onMove={(item) => {
                 setRenameItem(item);
                 setRenameTo(item.name);
@@ -684,6 +772,60 @@ export default function DateienPage() {
                 Umbenennen
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* File Preview Dialog */}
+      <Dialog
+        open={previewItem !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewItem(null);
+            setPreviewContent("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="size-5" />
+              {previewItem?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {previewLoading ? (
+            <div className="flex items-center justify-center gap-2 py-12">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Datei wird geladen...</span>
+            </div>
+          ) : (
+            <ScrollArea className="flex-1 max-h-[60vh]">
+              <pre className="text-sm font-mono whitespace-pre-wrap break-words p-4 bg-muted rounded-lg overflow-x-auto">
+                {previewContent}
+              </pre>
+            </ScrollArea>
+          )}
+          <div className="flex gap-2 justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPreviewItem(null);
+                setPreviewContent("");
+              }}
+            >
+              Schließen
+            </Button>
+            {previewItem && (
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={() => handleDownload(previewItem)}
+              >
+                <Download className="size-3.5" />
+                Herunterladen
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
