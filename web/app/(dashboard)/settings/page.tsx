@@ -1189,13 +1189,14 @@ function APIKeysSection() {
     );
     try {
       const state = providers.find((p) => p.provider === providerName);
-      if (!state || !state.inputValue.trim()) {
+      if (!state || (!state.inputValue.trim() && state.keyHint === null)) {
         toast.error("Bitte einen API-Schluessel eingeben");
         setProviders((prev) =>
           prev.map((p) => (p.provider === providerName ? { ...p, validating: false } : p))
         );
         return;
       }
+      // If no new input but key is stored, send empty string to test stored key
       const result = await api.post<{ valid: boolean; error?: string }>("/settings/api-keys/validate", {
         provider: providerName,
         api_key: state.inputValue.trim(),
@@ -1391,7 +1392,7 @@ function APIKeysSection() {
                 size="sm"
                 variant="outline"
                 onClick={() => handleValidate(p.provider)}
-                disabled={p.validating || !p.inputValue.trim()}
+                disabled={p.validating || (!p.inputValue.trim() && p.keyHint === null)}
                 className="gap-1.5 shrink-0"
               >
                 {p.validating ? (

@@ -195,7 +195,7 @@ class ApiKeyValidateRequest(BaseModel):
     """Request body for validating an API key."""
 
     provider: Literal["anthropic", "openai", "google"]
-    api_key: str
+    api_key: str = ""
 
 
 class ApiKeyValidateResponse(BaseModel):
@@ -213,13 +213,23 @@ class ApiKeyValidateResponse(BaseModel):
 async def validate_api_key(
     body: ApiKeyValidateRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> ApiKeyValidateResponse:
     """Teste ob ein API-Key funktioniert, indem ein minimaler API-Call gemacht wird."""
+    # If no key provided, use the stored key for this user
+    api_key = body.api_key.strip() if body.api_key else ""
+    if not api_key:
+        from services.llm_service import get_user_api_key
+        stored_key = await get_user_api_key(current_user.id, db, body.provider)
+        if not stored_key:
+            return ApiKeyValidateResponse(valid=False, error="Kein API-Key gespeichert")
+        api_key = stored_key
+
     try:
         if body.provider == "anthropic":
             import anthropic
 
-            client = anthropic.AsyncAnthropic(api_key=body.api_key)
+            client = anthropic.AsyncAnthropic(api_key=api_key)
             try:
                 await asyncio.wait_for(
                     client.messages.create(
@@ -235,7 +245,7 @@ async def validate_api_key(
         elif body.provider == "openai":
             from openai import AsyncOpenAI
 
-            client = AsyncOpenAI(api_key=body.api_key)
+            client = AsyncOpenAI(api_key=api_key)
             try:
                 await asyncio.wait_for(
                     client.chat.completions.create(
@@ -251,7 +261,7 @@ async def validate_api_key(
         elif body.provider == "google":
             import google.generativeai as genai
 
-            genai.configure(api_key=body.api_key)
+            genai.configure(api_key=api_key)
             model = genai.GenerativeModel("gemini-2.0-flash-lite")
             await asyncio.wait_for(
                 model.generate_content_async("Hi"),
