@@ -444,7 +444,7 @@ class SkillService:
 
         # Handle storage tools
         if tool_name.startswith("storage_"):
-            return await self._execute_storage_tool(user_id, tool_name, tool_input)
+            return await self._execute_storage_tool(db, user_id, tool_name, tool_input)
 
         # Handle web_fetch tool
         if tool_name == "web_fetch":
@@ -912,30 +912,52 @@ class SkillService:
 
     async def _execute_storage_tool(
         self,
+        db: AsyncSession,
         user_id: uuid.UUID,
         tool_name: str,
         tool_input: dict,
     ) -> str:
-        """Execute a storage tool call (list, read, write, delete)."""
-        from services.storage_service import storage_service
+        """Execute a storage tool call using per-user S3 credentials from DB."""
         import json
+        import boto3
+        from sqlalchemy import select
+        from models.user import User
 
         try:
+            # Load user's S3 config from database
+            result = await db.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+
+            if not user or not user.s3_endpoint_url or not user.s3_access_key or not user.s3_secret_key:
+                return "Fehler: Object Storage ist nicht konfiguriert. Bitte unter Settings > Speicher die S3-Zugangsdaten eingeben."
+
+            bucket = user.s3_bucket_name or "paix"
+            region = user.s3_region or "fsn1"
+
+            # Create per-user S3 client
+            s3 = boto3.client(
+                "s3",
+                endpoint_url=user.s3_endpoint_url,
+                aws_access_key_id=user.s3_access_key,
+                aws_secret_access_key=user.s3_secret_key,
+                region_name=region,
+            )
+
             user_prefix = f"users/{user_id}/"
 
             if tool_name == "storage_list":
                 path = tool_input.get("path", "")
                 full_path = user_prefix + path.lstrip("/")
-                result = await storage_service.list_objects(prefix=full_path)
-                # Strip user prefix
+                resp = s3.list_objects_v2(Bucket=bucket, Prefix=full_path, Delimiter="/")
                 items = []
-                for f in result.get("folders", []):
-                    name = f["name"]
-                    items.append(f"📁 {name}/")
-                for f in result.get("files", []):
-                    name = f["name"]
-                    size = f.get("size", 0)
-                    items.append(f"📄 {name} ({size} bytes)")
+                for p in resp.get("CommonPrefixes", []):
+                    name = p["Prefix"].replace(full_path, "").strip("/")
+                    if name:
+                        items.append(f"📁 {name}/")
+                for obj in resp.get("Contents", []):
+                    name = obj["Key"].replace(full_path, "")
+                    if name and not name.endswith("/"):
+                        items.append(f"📄 {name} ({obj['Size']} bytes)")
                 if not items:
                     return f"Ordner '{path or '/'}' ist leer."
                 return f"Inhalt von '{path or '/'}':\n" + "\n".join(items)
@@ -943,32 +965,28 @@ class SkillService:
             elif tool_name == "storage_read":
                 path = tool_input.get("path", "")
                 key = user_prefix + path.lstrip("/")
-                data, ct = await storage_service.download_file(key)
-                # Limit to 50KB for text content
+                resp = s3.get_object(Bucket=bucket, Key=key)
+                data = resp["Body"].read()
                 if len(data) > 50 * 1024:
-                    return f"Datei zu groß zum Lesen ({len(data)} bytes). Nutze den Download-Link stattdessen."
+                    return f"Datei zu groß zum Lesen ({len(data)} bytes)."
                 try:
-                    text = data.decode("utf-8")
-                    return text
+                    return data.decode("utf-8")
                 except UnicodeDecodeError:
-                    return f"Binärdatei ({ct}, {len(data)} bytes) — kann nicht als Text angezeigt werden."
+                    return f"Binärdatei ({len(data)} bytes) — kann nicht als Text angezeigt werden."
 
             elif tool_name == "storage_write":
                 path = tool_input.get("path", "")
                 content = tool_input.get("content", "")
                 ct = tool_input.get("content_type", "text/plain")
                 key = user_prefix + path.lstrip("/")
-                result = await storage_service.upload_file(
-                    key=key,
-                    data=content.encode("utf-8"),
-                    content_type=ct,
-                )
-                return f"Datei gespeichert: {path} ({result['size']} bytes)"
+                data = content.encode("utf-8")
+                s3.put_object(Bucket=bucket, Key=key, Body=data, ContentType=ct)
+                return f"Datei gespeichert: {path} ({len(data)} bytes)"
 
             elif tool_name == "storage_delete":
                 path = tool_input.get("path", "")
                 key = user_prefix + path.lstrip("/")
-                await storage_service.delete_object(key)
+                s3.delete_object(Bucket=bucket, Key=key)
                 return f"Gelöscht: {path}"
 
             else:

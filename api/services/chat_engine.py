@@ -297,8 +297,8 @@ class ChatEngine:
         api_tools = await self._load_api_werkzeug_tools(db, user_id)
         tools.extend(api_tools)
 
-        # Storage tools (always available if configured)
-        tools.extend(self._get_storage_tools())
+        # Storage tools (available if user has S3 configured)
+        tools.extend(await self._get_storage_tools(db, user_id))
 
         return tools
 
@@ -383,10 +383,13 @@ class ChatEngine:
     # Storage tools
     # ──────────────────────────────────────────────
 
-    def _get_storage_tools(self) -> list[dict]:
-        """Return storage tools if S3 is configured."""
-        from services.storage_service import storage_service
-        if not storage_service.configured:
+    async def _get_storage_tools(self, db: "AsyncSession", user_id: uuid.UUID) -> list[dict]:
+        """Return storage tools if user has S3 configured in their profile."""
+        from sqlalchemy import select
+        from models.user import User
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if not user or not user.s3_endpoint_url or not user.s3_access_key or not user.s3_secret_key:
             return []
         return [
             {
