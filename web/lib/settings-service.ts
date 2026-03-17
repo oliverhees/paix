@@ -173,6 +173,12 @@ export interface SkillDetail {
   output_path?: string | null;
 }
 
+export interface SkillFile {
+  name: string;
+  size: number;
+  last_modified: string | null;
+}
+
 export interface SkillUpdateRequest {
   active?: boolean;
   autonomy_level?: number;
@@ -426,6 +432,39 @@ class SettingsService {
     return api.post<{ routine_id: string; name: string; cron: string }>(
       `/skills/${skillId}/schedule`,
       { cron_expression: cronExpression, timezone, description }
+    );
+  }
+
+  // ── Skill Files (S3 Directory) ──
+
+  async getSkillFiles(
+    skillId: string
+  ): Promise<{ files: SkillFile[] }> {
+    return api.get<{ files: SkillFile[] }>(`/skills/${skillId}/files`);
+  }
+
+  async uploadSkillFile(
+    skillId: string,
+    file: File,
+    path?: string
+  ): Promise<{ name: string; size: number; message: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (path) {
+      formData.append("path", path);
+    }
+    return api.upload<{ name: string; size: number; message: string }>(
+      `/skills/${skillId}/files`,
+      formData
+    );
+  }
+
+  async deleteSkillFile(
+    skillId: string,
+    filePath: string
+  ): Promise<{ message: string }> {
+    return api.delete<{ message: string }>(
+      `/skills/${skillId}/files/${filePath}`
     );
   }
 

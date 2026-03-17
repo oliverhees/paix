@@ -230,6 +230,32 @@ class ApiClient {
     return this.request<T>(endpoint, { method: "DELETE" });
   }
 
+  /**
+   * Upload a file via multipart/form-data (does NOT set Content-Type header
+   * so the browser can set the boundary automatically).
+   */
+  async upload<T = unknown>(endpoint: string, formData: FormData): Promise<T> {
+    const headers: Record<string, string> = {};
+    if (this.accessToken) {
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
+    }
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      const error: ApiError = await response.json().catch(() => ({
+        detail: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      throw new ApiClientError(
+        response.status,
+        error.detail || error.message || `Upload failed: ${response.status}`
+      );
+    }
+    return response.json();
+  }
+
   // ─── Auth Methods ───
 
   async login(data: LoginRequest): Promise<TokenResponse> {

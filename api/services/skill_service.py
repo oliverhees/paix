@@ -627,6 +627,59 @@ class SkillService:
 
         return None
 
+    async def _load_skill_directory(self, db: AsyncSession, user_id: uuid.UUID, skill_id: str) -> str:
+        """Load template, examples and references from skill S3 directory."""
+        import boto3
+        from models.user import User
+
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if not user or not user.s3_endpoint_url:
+            return ""
+
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=user.s3_endpoint_url,
+            aws_access_key_id=user.s3_access_key,
+            aws_secret_access_key=user.s3_secret_key,
+            region_name=user.s3_region or "fsn1",
+        )
+        bucket = user.s3_bucket_name or "paix"
+        prefix = f"users/{user_id}/skills/{skill_id}/"
+
+        sections = []
+
+        try:
+            resp = s3.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=20)
+            for obj in resp.get("Contents", []):
+                key = obj["Key"]
+                filename = key.replace(prefix, "")
+                if filename == "SKILL.md" or not filename or filename.endswith("/"):
+                    continue  # Skip — SKILL.md already in skill_md
+                if obj["Size"] > 50 * 1024:
+                    continue  # Skip files > 50KB
+
+                try:
+                    data = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+                    text = data.decode("utf-8")
+
+                    if filename == "template.md":
+                        sections.append(
+                            f"## Output-Template\nVerwende dieses Template fuer die Ausgabe:\n\n{text}"
+                        )
+                    elif filename.startswith("examples/"):
+                        sections.append(f"## Beispiel: {filename}\n\n{text}")
+                    elif filename.startswith("references/"):
+                        sections.append(f"## Referenz: {filename}\n\n{text}")
+                    else:
+                        sections.append(f"## {filename}\n\n{text}")
+                except Exception:
+                    continue
+        except Exception:
+            return ""
+
+        return "\n\n---\n\n".join(sections) if sections else ""
+
     def _get_skill_tools(self) -> list[dict]:
         """Tools available during skill execution."""
         return [
@@ -767,6 +820,12 @@ class SkillService:
 
         # Build the prompt
         system_prompt = definition.get("system_prompt", "")
+
+        # Load skill directory files from S3 (template, examples, references)
+        skill_context = await self._load_skill_directory(db, user_id, skill_id)
+        if skill_context:
+            system_prompt += "\n\n" + skill_context
+
         user_message = self._build_user_message(definition, user_input, parameters)
 
         if not user_message.strip():

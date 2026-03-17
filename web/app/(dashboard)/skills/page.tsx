@@ -38,6 +38,8 @@ import {
   BarChart3,
   TrendingUp,
   Activity,
+  Upload,
+  FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -79,6 +81,7 @@ import {
   type SkillLogEntry,
   type SkillParameterDef,
   type SkillToolCall,
+  type SkillFile,
   type McpServer,
   type SkillCreateRequest,
   type SkillGenerateMessage,
@@ -1304,6 +1307,61 @@ function SkillDetailView({
   const [draftTools, setDraftTools] = useState<string[]>([]);
   const [savingTools, setSavingTools] = useState(false);
 
+  // Skill files state
+  const [skillFiles, setSkillFiles] = useState<SkillFile[]>([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadPath, setUploadPath] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchSkillFiles = useCallback(async () => {
+    setFilesLoading(true);
+    try {
+      const data = await settingsService.getSkillFiles(skillId);
+      setSkillFiles(data.files);
+    } catch {
+      // S3 not configured — that's ok
+      setSkillFiles([]);
+    } finally {
+      setFilesLoading(false);
+    }
+  }, [skillId]);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 50 * 1024) {
+      toast.error("Datei zu gross (max 50KB)");
+      return;
+    }
+    setUploading(true);
+    try {
+      const path = uploadPath.trim() || undefined;
+      await settingsService.uploadSkillFile(skillId, file, path);
+      toast.success(`Datei '${path || file.name}' hochgeladen`);
+      setUploadPath("");
+      fetchSkillFiles();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload fehlgeschlagen";
+      toast.error(msg);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleDeleteFile(filePath: string) {
+    if (!window.confirm(`Datei '${filePath}' wirklich loeschen?`)) return;
+    try {
+      await settingsService.deleteSkillFile(skillId, filePath);
+      toast.success(`Datei '${filePath}' geloescht`);
+      fetchSkillFiles();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Loeschen fehlgeschlagen";
+      toast.error(msg);
+    }
+  }
+
   const fetchSkill = useCallback(async () => {
     setLoading(true);
     try {
@@ -1335,7 +1393,8 @@ function SkillDetailView({
   useEffect(() => {
     fetchSkill();
     fetchLogs();
-  }, [fetchSkill, fetchLogs]);
+    fetchSkillFiles();
+  }, [fetchSkill, fetchLogs, fetchSkillFiles]);
 
   useEffect(() => {
     async function fetchServers() {
@@ -1588,6 +1647,10 @@ function SkillDetailView({
           <TabsTrigger value="logs" className="gap-1.5">
             <ScrollText className="size-3.5" />
             Verlauf
+          </TabsTrigger>
+          <TabsTrigger value="files" className="gap-1.5">
+            <FolderOpen className="size-3.5" />
+            Dateien
           </TabsTrigger>
           <TabsTrigger value="config" className="gap-1.5">
             <Settings2 className="size-3.5" />
@@ -1846,6 +1909,100 @@ function SkillDetailView({
           ) : (
             logs.map((log) => <LogEntry key={log.id} log={log} />)
           )}
+        </TabsContent>
+
+        {/* Files Tab */}
+        <TabsContent value="files" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FolderOpen className="size-4" />
+                Skill-Dateien
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Dateien werden beim Ausfuehren automatisch als Kontext geladen.
+                Nutze template.md, examples/ und references/ Verzeichnisse.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* File list */}
+              {filesLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ) : skillFiles.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">
+                  Keine Dateien vorhanden. Lade template.md, Beispiele oder Referenzen hoch.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {skillFiles.map((f) => (
+                    <div
+                      key={f.name}
+                      className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50 text-sm"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{f.name}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {f.size > 1024
+                            ? `${(f.size / 1024).toFixed(1)} KB`
+                            : `${f.size} B`}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 shrink-0 text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteFile(f.name)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Separator />
+
+              {/* Upload */}
+              <div className="space-y-2">
+                <Label className="text-xs">Datei hochladen (max 50KB)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Pfad z.B. template.md oder references/playbook.md"
+                    value={uploadPath}
+                    onChange={(e) => setUploadPath(e.target.value)}
+                    className="text-xs"
+                  />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="gap-1.5 shrink-0"
+                  >
+                    {uploading ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="size-3.5" />
+                    )}
+                    Upload
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Konvention: template.md (Output-Vorlage), examples/*.md (Beispiele), references/*.md (Referenzen)
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Config Tab */}
