@@ -363,14 +363,29 @@ function McpToolSelector({
   );
 }
 
-// ─── Schedule Presets ────────────────────────────────────────────────────────
+// ─── Schedule Constants ──────────────────────────────────────────────────────
 
-const SCHEDULE_PRESETS = [
-  { label: "Taeglich 07:30", cron: "30 7 * * *" },
-  { label: "Taeglich 18:00", cron: "0 18 * * *" },
-  { label: "Montags 09:00", cron: "0 9 * * 1" },
-  { label: "Alle 6 Stunden", cron: "0 */6 * * *" },
-] as const;
+type ScheduleFrequency = "daily" | "weekly" | "monthly" | "hourly";
+
+const FREQUENCY_OPTIONS: { value: ScheduleFrequency; label: string }[] = [
+  { value: "daily", label: "Taeglich" },
+  { value: "weekly", label: "Woechentlich" },
+  { value: "monthly", label: "Monatlich" },
+  { value: "hourly", label: "Stuendlich" },
+];
+
+const WEEKDAYS = [
+  "Sonntag",
+  "Montag",
+  "Dienstag",
+  "Mittwoch",
+  "Donnerstag",
+  "Freitag",
+  "Samstag",
+];
+
+const MINUTE_OPTIONS = [0, 15, 30, 45];
+const HOUR_INTERVAL_OPTIONS = [1, 2, 3, 4, 6, 8, 12];
 
 const TIMEZONE_OPTIONS = [
   "Europe/Berlin",
@@ -394,28 +409,57 @@ function SkillScheduleDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [selectedCron, setSelectedCron] = useState("");
-  const [customCron, setCustomCron] = useState("");
-  const [showCustom, setShowCustom] = useState(false);
+  const [frequency, setFrequency] = useState<ScheduleFrequency>("daily");
+  const [hour, setHour] = useState(7);
+  const [minute, setMinute] = useState(30);
+  const [weekday, setWeekday] = useState(1); // 0=So, 1=Mo
+  const [monthday, setMonthday] = useState(1);
+  const [everyHours, setEveryHours] = useState(6);
   const [timezone, setTimezone] = useState("Europe/Berlin");
+  const [showCustomCron, setShowCustomCron] = useState(false);
+  const [customCron, setCustomCron] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const activeCron = showCustom && customCron.trim() ? customCron.trim() : selectedCron;
+  const getCronExpression = (): string => {
+    if (showCustomCron && customCron.trim()) return customCron.trim();
+    switch (frequency) {
+      case "daily":
+        return `${minute} ${hour} * * *`;
+      case "weekly":
+        return `${minute} ${hour} * * ${weekday}`;
+      case "monthly":
+        return `${minute} ${hour} ${monthday} * *`;
+      case "hourly":
+        return `${minute} */${everyHours} * * *`;
+    }
+  };
+
+  const getPreviewText = (): string => {
+    if (showCustomCron && customCron.trim()) return `Cron: ${customCron.trim()}`;
+    const time = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+    switch (frequency) {
+      case "daily":
+        return `Wird taeglich um ${time} Uhr ausgefuehrt`;
+      case "weekly":
+        return `Wird jeden ${WEEKDAYS[weekday]} um ${time} Uhr ausgefuehrt`;
+      case "monthly":
+        return `Wird am ${monthday}. jedes Monats um ${time} Uhr ausgefuehrt`;
+      case "hourly":
+        return `Wird alle ${everyHours} Stunden ausgefuehrt (ab Minute ${minute.toString().padStart(2, "0")})`;
+    }
+  };
 
   async function handleSave() {
-    if (!activeCron) {
-      toast.error("Bitte waehle einen Zeitplan aus.");
+    const cron = getCronExpression();
+    if (!cron) {
+      toast.error("Bitte konfiguriere einen Zeitplan.");
       return;
     }
     setSaving(true);
     try {
-      await settingsService.scheduleSkill(skill.id, activeCron, timezone);
+      await settingsService.scheduleSkill(skill.id, cron, timezone);
       toast.success("Skill geplant! Wird automatisch ausgefuehrt.");
       onOpenChange(false);
-      // Reset state
-      setSelectedCron("");
-      setCustomCron("");
-      setShowCustom(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Fehler beim Planen";
       toast.error(msg);
@@ -435,67 +479,168 @@ function SkillScheduleDialog({
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          {/* Preset Chips */}
+          {/* Step 1: Frequency */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Zeitplan</Label>
+            <Label className="text-sm font-medium">Haeufigkeit</Label>
             <div className="flex flex-wrap gap-2">
-              {SCHEDULE_PRESETS.map((preset) => (
+              {FREQUENCY_OPTIONS.map((opt) => (
                 <button
-                  key={preset.cron}
+                  key={opt.value}
                   type="button"
                   onClick={() => {
-                    setSelectedCron(preset.cron);
-                    setShowCustom(false);
-                    setCustomCron("");
+                    setFrequency(opt.value);
+                    setShowCustomCron(false);
                   }}
                   className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                    selectedCron === preset.cron && !showCustom
+                    frequency === opt.value && !showCustomCron
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border hover:border-primary/50 text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Timer className="size-3" />
-                  {preset.label}
+                  {opt.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Custom Cron Toggle */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowCustom(!showCustom)}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {showCustom ? (
-                <ChevronUp className="size-3" />
-              ) : (
-                <ChevronDown className="size-3" />
+          {/* Step 2: Details based on frequency */}
+          {!showCustomCron && (
+            <div className="space-y-3">
+              {/* Weekly: Weekday picker */}
+              {frequency === "weekly" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Tag</Label>
+                  <Select
+                    value={weekday.toString()}
+                    onValueChange={(v) => setWeekday(parseInt(v))}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WEEKDAYS.map((day, i) => (
+                        <SelectItem key={i} value={i.toString()} className="text-sm">
+                          {day}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
-              Eigener Cron-Ausdruck
-            </button>
-            {showCustom && (
-              <div className="space-y-1">
-                <Input
-                  placeholder="z.B. 30 7 * * * (Min Std Tag Mon Wtag)"
-                  value={customCron}
-                  onChange={(e) => {
-                    setCustomCron(e.target.value);
-                    setSelectedCron("");
-                  }}
-                  className="h-9 text-sm font-mono"
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Format: Minute Stunde Tag Monat Wochentag
-                </p>
-              </div>
-            )}
-          </div>
+
+              {/* Monthly: Day picker */}
+              {frequency === "monthly" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Tag des Monats</Label>
+                  <Select
+                    value={monthday.toString()}
+                    onValueChange={(v) => setMonthday(parseInt(v))}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                        <SelectItem key={d} value={d.toString()} className="text-sm">
+                          {d}.
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Hourly: Interval picker */}
+              {frequency === "hourly" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Intervall</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Alle</span>
+                    <Select
+                      value={everyHours.toString()}
+                      onValueChange={(v) => setEveryHours(parseInt(v))}
+                    >
+                      <SelectTrigger className="h-9 w-20 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {HOUR_INTERVAL_OPTIONS.map((h) => (
+                          <SelectItem key={h} value={h.toString()} className="text-sm">
+                            {h}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm text-muted-foreground">Stunden</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Time picker (for daily, weekly, monthly) */}
+              {frequency !== "hourly" ? (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Uhrzeit</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Select
+                      value={hour.toString()}
+                      onValueChange={(v) => setHour(parseInt(v))}
+                    >
+                      <SelectTrigger className="h-9 w-20 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                          <SelectItem key={h} value={h.toString()} className="text-sm">
+                            {h.toString().padStart(2, "0")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm font-medium text-muted-foreground">:</span>
+                    <Select
+                      value={minute.toString()}
+                      onValueChange={(v) => setMinute(parseInt(v))}
+                    >
+                      <SelectTrigger className="h-9 w-20 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MINUTE_OPTIONS.map((m) => (
+                          <SelectItem key={m} value={m.toString()} className="text-sm">
+                            {m.toString().padStart(2, "0")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Start-Minute</Label>
+                  <Select
+                    value={minute.toString()}
+                    onValueChange={(v) => setMinute(parseInt(v))}
+                  >
+                    <SelectTrigger className="h-9 w-20 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MINUTE_OPTIONS.map((m) => (
+                        <SelectItem key={m} value={m.toString()} className="text-sm">
+                          {m.toString().padStart(2, "0")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Timezone */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Zeitzone</Label>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Zeitzone</Label>
             <Select value={timezone} onValueChange={setTimezone}>
               <SelectTrigger className="h-9 text-sm">
                 <SelectValue />
@@ -510,21 +655,47 @@ function SkillScheduleDialog({
             </Select>
           </div>
 
-          {/* Active Cron Preview */}
-          {activeCron && (
-            <div className="rounded-lg bg-muted/50 border p-3 text-xs text-muted-foreground flex items-center gap-2">
-              <CalendarClock className="size-4 shrink-0 text-primary" />
-              <span>
-                Cron: <code className="font-mono text-foreground">{activeCron}</code>
-                {" "}({timezone})
-              </span>
-            </div>
-          )}
+          {/* Preview */}
+          <div className="rounded-lg bg-muted/50 border p-3 text-xs flex items-center gap-2">
+            <CalendarClock className="size-4 shrink-0 text-primary" />
+            <span className="italic text-muted-foreground">
+              {getPreviewText()} ({timezone})
+            </span>
+          </div>
+
+          {/* Custom Cron Toggle (Power User) */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowCustomCron(!showCustomCron)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showCustomCron ? (
+                <ChevronUp className="size-3" />
+              ) : (
+                <ChevronDown className="size-3" />
+              )}
+              Eigener Cron-Ausdruck
+            </button>
+            {showCustomCron && (
+              <div className="space-y-1">
+                <Input
+                  placeholder="z.B. 30 7 * * * (Min Std Tag Mon Wtag)"
+                  value={customCron}
+                  onChange={(e) => setCustomCron(e.target.value)}
+                  className="h-9 text-sm font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Format: Minute Stunde Tag Monat Wochentag
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Save Button */}
           <Button
             onClick={handleSave}
-            disabled={!activeCron || saving}
+            disabled={saving}
             className="w-full gap-2"
           >
             {saving ? (
