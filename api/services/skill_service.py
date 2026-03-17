@@ -605,6 +605,61 @@ class SkillService:
 
         return None
 
+    def _get_skill_tools(self) -> list[dict]:
+        """Tools available during skill execution."""
+        return [
+            {
+                "name": "web_search",
+                "description": "Search the internet for current information. Returns search results with titles, URLs, and snippets.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"},
+                        "max_results": {"type": "integer", "description": "Max results (1-5, default 5)"},
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "web_fetch",
+                "description": "Fetch and read the text content of a web page URL.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "URL to fetch"},
+                        "max_length": {"type": "integer", "description": "Max chars to return (default 10000)"},
+                    },
+                    "required": ["url"],
+                },
+            },
+            {
+                "name": "storage_write",
+                "description": "Save a text file to the user's object storage.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path (e.g. 'briefings/report.md')"},
+                        "content": {"type": "string", "description": "Text content to save"},
+                        "content_type": {"type": "string", "description": "MIME type (default: text/plain)"},
+                    },
+                    "required": ["path", "content"],
+                },
+            },
+            {
+                "name": "create_artifact",
+                "description": "Display a document in the side panel. Use for long-form content the user should see.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Document title"},
+                        "content": {"type": "string", "description": "Document content"},
+                        "type": {"type": "string", "description": "Content type: text/markdown, text/html, etc."},
+                    },
+                    "required": ["title", "content", "type"],
+                },
+            },
+        ]
+
     async def execute(
         self,
         db: AsyncSession,
@@ -686,13 +741,22 @@ class SkillService:
 
         try:
             user_api_key = await get_user_anthropic_key(user_id, db)
-            output_text = await llm_service.complete(
+            tools = self._get_skill_tools()
+
+            # Create a tool executor bound to this user's context
+            async def tool_executor(name: str, input_data: dict) -> str:
+                return await self.execute_tool_call(db, user_id, name, input_data)
+
+            result = await llm_service.complete_with_tool_handling(
                 messages=messages,
                 system_prompt=system_prompt,
-                max_tokens=4096,
+                max_tokens=16384,
                 temperature=0.7,
                 api_key=user_api_key,
+                tools=tools,
+                tool_executor=tool_executor,
             )
+            output_text = result.text
         except Exception as exc:
             status = "error"
             error_message = str(exc)

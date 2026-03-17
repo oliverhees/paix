@@ -746,6 +746,25 @@ async def execute_skill(
             detail=result.get("error", "Skill execution failed"),
         )
 
+    # Create notification for successful skill execution
+    try:
+        from models.notification import Notification
+
+        output_preview = result.get("output", "") or ""
+        if len(output_preview) > 200:
+            output_preview = output_preview[:200] + "..."
+
+        notification = Notification(
+            user_id=user.id,
+            type="skill_completed",
+            title=f"Skill '{skill_id}' abgeschlossen",
+            content=output_preview,
+        )
+        db.add(notification)
+        await db.commit()
+    except Exception:
+        logger.warning("Failed to create skill completion notification", exc_info=True)
+
     return {
         "execution": {
             "id": result.get("execution_id"),
