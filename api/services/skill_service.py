@@ -446,6 +446,51 @@ class SkillService:
         if tool_name.startswith("storage_"):
             return await self._execute_storage_tool(user_id, tool_name, tool_input)
 
+        # Handle web_fetch tool
+        if tool_name == "web_fetch":
+            import httpx
+            from bs4 import BeautifulSoup
+
+            url = tool_input.get("url", "")
+            max_length = tool_input.get("max_length", 10000)
+
+            if not url:
+                return "Error: URL is required"
+
+            # Block local/private URLs for security
+            from urllib.parse import urlparse
+            parsed_url = urlparse(url)
+            hostname = parsed_url.hostname or ""
+            if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1") or hostname.startswith("192.168.") or hostname.startswith("10.") or hostname.startswith("172."):
+                return "Error: Fetching local/private URLs is not allowed"
+
+            try:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (compatible; PAI-X/1.0; +https://agentiqpulse.com)",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                }
+                async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, max_redirects=5) as client:
+                    resp = await client.get(url, headers=headers)
+                    resp.raise_for_status()
+
+                # Parse HTML to text
+                try:
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    # Remove script, style, nav elements
+                    for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                        tag.decompose()
+                    text = soup.get_text(separator="\n", strip=True)
+                except Exception:
+                    text = resp.text
+
+                # Truncate
+                if len(text) > max_length:
+                    text = text[:max_length] + f"\n\n[...truncated at {max_length} chars]"
+
+                return text
+            except Exception as e:
+                return f"Error fetching {url}: {str(e)}"
+
         # Handle built-in tools that don't go through the LLM skill pipeline
         if tool_name == "web_search":
             import os

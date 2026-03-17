@@ -70,6 +70,30 @@ ARTIFACT_TOOL = {
 }
 
 # ── Run Code Tool Definition ──
+WEB_FETCH_TOOL = {
+    "name": "web_fetch",
+    "description": (
+        "Fetch the content of a web page by URL. Returns the text content of the page. "
+        "Use this to read articles, blog posts, documentation, or any web page. "
+        "Ideal for getting full context from URLs found via web_search."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": "The URL to fetch",
+            },
+            "max_length": {
+                "type": "integer",
+                "description": "Maximum characters to return (default: 10000)",
+            },
+        },
+        "required": ["url"],
+    },
+}
+
+# ── Run Code Tool Definition ──
 RUN_CODE_TOOL = {
     "name": "run_code",
     "description": (
@@ -261,6 +285,7 @@ class ChatEngine:
         """Load active skills as tools, plus artifact, run_code, and MCP tools."""
         tools = await skill_service.get_tools_for_user(db, user_id)
         tools.append(ARTIFACT_TOOL)
+        tools.append(WEB_FETCH_TOOL)
         if app_settings.docker_sandbox_enabled:
             tools.append(RUN_CODE_TOOL)
 
