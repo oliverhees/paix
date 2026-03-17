@@ -5,7 +5,7 @@ import logging
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy import case, func, select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1068,28 +1068,10 @@ async def get_skill_logs(
 
 
 # ──────────────────────────────────────────────
-# Skill Directory Files (S3)
+# Skill Directory Files (PostgreSQL)
 # ──────────────────────────────────────────────
 
-
-def _get_s3_client(user: User):
-    """Create an S3 client from user credentials. Returns (client, bucket) or raises."""
-    if not user.s3_endpoint_url or not user.s3_access_key or not user.s3_secret_key:
-        raise HTTPException(
-            status_code=400,
-            detail="Object Storage ist nicht konfiguriert. Bitte unter Settings die S3-Zugangsdaten eingeben.",
-        )
-    import boto3
-
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=user.s3_endpoint_url,
-        aws_access_key_id=user.s3_access_key,
-        aws_secret_access_key=user.s3_secret_key,
-        region_name=user.s3_region or "fsn1",
-    )
-    bucket = user.s3_bucket_name or "paix"
-    return s3, bucket
+from models.skill_file import SkillFile
 
 
 @router.get("/skills/{skill_id}/files")
@@ -1098,7 +1080,7 @@ async def list_skill_files(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List files in the skill's S3 directory."""
+    """List files attached to a skill (stored in PostgreSQL)."""
     # Verify skill exists for this user
     result = await db.execute(
         select(SkillConfig).where(
@@ -1109,36 +1091,40 @@ async def list_skill_files(
     if result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
 
-    s3, bucket = _get_s3_client(user)
-    prefix = f"users/{user.id}/skills/{skill_id}/"
+    result = await db.execute(
+        select(SkillFile)
+        .where(SkillFile.user_id == user.id, SkillFile.skill_id == skill_id)
+        .order_by(SkillFile.filename)
+    )
+    files = result.scalars().all()
+    return {
+        "files": [
+            {
+                "id": str(f.id),
+                "filename": f.filename,
+                "file_type": f.file_type,
+                "size": len(f.content),
+                "updated_at": f.updated_at.isoformat() if f.updated_at else None,
+            }
+            for f in files
+        ]
+    }
 
-    try:
-        resp = s3.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=20)
-        files = []
-        for obj in resp.get("Contents", []):
-            filename = obj["Key"].replace(prefix, "")
-            if not filename or filename.endswith("/"):
-                continue
-            files.append({
-                "name": filename,
-                "size": obj["Size"],
-                "last_modified": obj["LastModified"].isoformat() if obj.get("LastModified") else None,
-            })
-        return {"files": files}
-    except Exception as e:
-        logger.error("Failed to list skill files: %s", e)
-        raise HTTPException(status_code=500, detail=f"Fehler beim Auflisten der Dateien: {str(e)}")
+
+class SkillFileCreateRequest(BaseModel):
+    filename: str
+    content: str
+    file_type: str = "reference"
 
 
 @router.post("/skills/{skill_id}/files")
 async def upload_skill_file(
     skill_id: str,
-    file: UploadFile = File(...),
-    path: str = Form(default=""),
+    body: SkillFileCreateRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload a file to the skill's S3 directory."""
+    """Create or update a skill file (stored in PostgreSQL)."""
     # Verify skill exists for this user
     result = await db.execute(
         select(SkillConfig).where(
@@ -1149,56 +1135,103 @@ async def upload_skill_file(
     if result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
 
-    # Determine the filename
-    filename = path.strip("/") if path else (file.filename or "uploaded_file")
-    if not filename:
+    if not body.filename.strip():
         raise HTTPException(status_code=400, detail="Dateiname fehlt")
 
-    # Read file content (max 50KB)
-    content = await file.read()
-    if len(content) > 50 * 1024:
-        raise HTTPException(status_code=400, detail="Datei zu gross (max 50KB)")
+    if len(body.content) > 100 * 1024:
+        raise HTTPException(status_code=400, detail="Datei zu gross (max 100KB)")
 
-    s3, bucket = _get_s3_client(user)
-    key = f"users/{user.id}/skills/{skill_id}/{filename}"
+    if body.file_type not in ("template", "example", "reference"):
+        raise HTTPException(status_code=400, detail="file_type muss template, example oder reference sein")
 
-    try:
-        content_type = file.content_type or "application/octet-stream"
-        s3.put_object(Bucket=bucket, Key=key, Body=content, ContentType=content_type)
-        return {
-            "name": filename,
-            "size": len(content),
-            "message": f"Datei '{filename}' hochgeladen",
-        }
-    except Exception as e:
-        logger.error("Failed to upload skill file: %s", e)
-        raise HTTPException(status_code=500, detail=f"Upload-Fehler: {str(e)}")
+    # Count existing files for this skill
+    count_result = await db.execute(
+        select(func.count()).select_from(SkillFile).where(
+            SkillFile.user_id == user.id, SkillFile.skill_id == skill_id
+        )
+    )
+    file_count = count_result.scalar() or 0
+
+    # Check if file already exists — update it
+    existing = await db.execute(
+        select(SkillFile).where(
+            SkillFile.user_id == user.id,
+            SkillFile.skill_id == skill_id,
+            SkillFile.filename == body.filename,
+        )
+    )
+    file = existing.scalar_one_or_none()
+
+    if file:
+        file.content = body.content
+        file.file_type = body.file_type
+    else:
+        if file_count >= 20:
+            raise HTTPException(status_code=400, detail="Maximal 20 Dateien pro Skill")
+        file = SkillFile(
+            user_id=user.id,
+            skill_id=skill_id,
+            filename=body.filename,
+            content=body.content,
+            file_type=body.file_type,
+        )
+        db.add(file)
+
+    await db.commit()
+    await db.refresh(file)
+    return {"id": str(file.id), "filename": body.filename, "size": len(body.content)}
 
 
-@router.delete("/skills/{skill_id}/files/{file_path:path}")
-async def delete_skill_file(
+@router.get("/skills/{skill_id}/files/{file_id}")
+async def get_skill_file(
     skill_id: str,
-    file_path: str,
+    file_id: str,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a file from the skill's S3 directory."""
-    # Verify skill exists for this user
+    """Get a single skill file with its content."""
+    import uuid as uuid_mod
+
     result = await db.execute(
-        select(SkillConfig).where(
-            SkillConfig.user_id == user.id,
-            SkillConfig.skill_id == skill_id,
+        select(SkillFile).where(
+            SkillFile.id == uuid_mod.UUID(file_id),
+            SkillFile.user_id == user.id,
+            SkillFile.skill_id == skill_id,
         )
     )
-    if result.scalar_one_or_none() is None:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
+    file = result.scalar_one_or_none()
+    if not file:
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
 
-    s3, bucket = _get_s3_client(user)
-    key = f"users/{user.id}/skills/{skill_id}/{file_path}"
+    return {
+        "id": str(file.id),
+        "filename": file.filename,
+        "content": file.content,
+        "file_type": file.file_type,
+        "size": len(file.content),
+        "updated_at": file.updated_at.isoformat() if file.updated_at else None,
+    }
 
-    try:
-        s3.delete_object(Bucket=bucket, Key=key)
-        return {"message": f"Datei '{file_path}' geloescht"}
-    except Exception as e:
-        logger.error("Failed to delete skill file: %s", e)
-        raise HTTPException(status_code=500, detail=f"Loesch-Fehler: {str(e)}")
+
+@router.delete("/skills/{skill_id}/files/{file_id}")
+async def delete_skill_file(
+    skill_id: str,
+    file_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a skill file."""
+    import uuid as uuid_mod
+
+    result = await db.execute(
+        select(SkillFile).where(
+            SkillFile.id == uuid_mod.UUID(file_id),
+            SkillFile.user_id == user.id,
+        )
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+    await db.delete(file)
+    await db.commit()
+    return {"deleted": True}

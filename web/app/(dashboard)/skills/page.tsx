@@ -38,7 +38,6 @@ import {
   BarChart3,
   TrendingUp,
   Activity,
-  Upload,
   FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -1310,9 +1309,9 @@ function SkillDetailView({
   // Skill files state
   const [skillFiles, setSkillFiles] = useState<SkillFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadPath, setUploadPath] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileDialogOpen, setFileDialogOpen] = useState(false);
+  const [editingFile, setEditingFile] = useState<{ id?: string; filename: string; content: string; file_type: string } | null>(null);
+  const [savingFile, setSavingFile] = useState(false);
 
   const fetchSkillFiles = useCallback(async () => {
     setFilesLoading(true);
@@ -1320,41 +1319,57 @@ function SkillDetailView({
       const data = await settingsService.getSkillFiles(skillId);
       setSkillFiles(data.files);
     } catch {
-      // S3 not configured — that's ok
       setSkillFiles([]);
     } finally {
       setFilesLoading(false);
     }
   }, [skillId]);
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 50 * 1024) {
-      toast.error("Datei zu gross (max 50KB)");
-      return;
-    }
-    setUploading(true);
+  function openNewFileDialog() {
+    setEditingFile({ filename: "", content: "", file_type: "reference" });
+    setFileDialogOpen(true);
+  }
+
+  async function openEditFileDialog(file: SkillFile) {
     try {
-      const path = uploadPath.trim() || undefined;
-      await settingsService.uploadSkillFile(skillId, file, path);
-      toast.success(`Datei '${path || file.name}' hochgeladen`);
-      setUploadPath("");
-      fetchSkillFiles();
+      const data = await settingsService.getSkillFile(skillId, file.id);
+      setEditingFile({ id: data.id, filename: data.filename, content: data.content, file_type: data.file_type });
+      setFileDialogOpen(true);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Upload fehlgeschlagen";
+      const msg = err instanceof Error ? err.message : "Fehler beim Laden";
       toast.error(msg);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
-  async function handleDeleteFile(filePath: string) {
-    if (!window.confirm(`Datei '${filePath}' wirklich loeschen?`)) return;
+  async function handleSaveFile() {
+    if (!editingFile || !editingFile.filename.trim() || !editingFile.content.trim()) {
+      toast.error("Dateiname und Inhalt sind erforderlich");
+      return;
+    }
+    if (editingFile.content.length > 100 * 1024) {
+      toast.error("Datei zu gross (max 100KB)");
+      return;
+    }
+    setSavingFile(true);
     try {
-      await settingsService.deleteSkillFile(skillId, filePath);
-      toast.success(`Datei '${filePath}' geloescht`);
+      await settingsService.uploadSkillFile(skillId, editingFile.filename.trim(), editingFile.content, editingFile.file_type);
+      toast.success(`Datei '${editingFile.filename}' gespeichert`);
+      setFileDialogOpen(false);
+      setEditingFile(null);
+      fetchSkillFiles();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Speichern fehlgeschlagen";
+      toast.error(msg);
+    } finally {
+      setSavingFile(false);
+    }
+  }
+
+  async function handleDeleteFile(fileId: string, filename: string) {
+    if (!window.confirm(`Datei '${filename}' wirklich loeschen?`)) return;
+    try {
+      await settingsService.deleteSkillFile(skillId, fileId);
+      toast.success(`Datei '${filename}' geloescht`);
       fetchSkillFiles();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Loeschen fehlgeschlagen";
@@ -1920,8 +1935,7 @@ function SkillDetailView({
                 Skill-Dateien
               </CardTitle>
               <CardDescription className="text-xs">
-                Dateien werden beim Ausfuehren automatisch als Kontext geladen.
-                Nutze template.md, examples/ und references/ Verzeichnisse.
+                Werden beim Ausfuehren automatisch als Kontext geladen.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1933,32 +1947,45 @@ function SkillDetailView({
                 </div>
               ) : skillFiles.length === 0 ? (
                 <p className="text-xs text-muted-foreground py-4 text-center">
-                  Keine Dateien vorhanden. Lade template.md, Beispiele oder Referenzen hoch.
+                  Keine Dateien vorhanden. Erstelle Templates, Beispiele oder Referenzen.
                 </p>
               ) : (
                 <div className="space-y-1">
                   {skillFiles.map((f) => (
                     <div
-                      key={f.name}
+                      key={f.id}
                       className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50 text-sm"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{f.name}</span>
+                        <span className="truncate">{f.filename}</span>
+                        <Badge variant="secondary" className="text-[10px] shrink-0">
+                          {f.file_type === "template" ? "Template" : f.file_type === "example" ? "Beispiel" : "Referenz"}
+                        </Badge>
                         <span className="text-xs text-muted-foreground shrink-0">
                           {f.size > 1024
                             ? `${(f.size / 1024).toFixed(1)} KB`
                             : `${f.size} B`}
                         </span>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 shrink-0 text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteFile(f.name)}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={() => openEditFileDialog(f)}
+                        >
+                          <Settings2 className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteFile(f.id, f.filename)}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1966,43 +1993,83 @@ function SkillDetailView({
 
               <Separator />
 
-              {/* Upload */}
-              <div className="space-y-2">
-                <Label className="text-xs">Datei hochladen (max 50KB)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Pfad z.B. template.md oder references/playbook.md"
-                    value={uploadPath}
-                    onChange={(e) => setUploadPath(e.target.value)}
-                    className="text-xs"
-                  />
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={uploading}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="gap-1.5 shrink-0"
-                  >
-                    {uploading ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="size-3.5" />
-                    )}
-                    Upload
-                  </Button>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Konvention: template.md (Output-Vorlage), examples/*.md (Beispiele), references/*.md (Referenzen)
-                </p>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openNewFileDialog}
+                className="gap-1.5 w-full"
+              >
+                <Plus className="size-3.5" />
+                Datei hinzufuegen
+              </Button>
             </CardContent>
           </Card>
+
+          {/* File Edit Dialog */}
+          <Dialog open={fileDialogOpen} onOpenChange={setFileDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-sm">
+                  {editingFile?.id ? "Datei bearbeiten" : "Neue Datei erstellen"}
+                </DialogTitle>
+              </DialogHeader>
+              {editingFile && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Dateiname</Label>
+                      <Input
+                        placeholder="z.B. template.md"
+                        value={editingFile.filename}
+                        onChange={(e) => setEditingFile({ ...editingFile, filename: e.target.value })}
+                        className="text-xs"
+                        disabled={!!editingFile.id}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Typ</Label>
+                      <Select
+                        value={editingFile.file_type}
+                        onValueChange={(v) => setEditingFile({ ...editingFile, file_type: v })}
+                      >
+                        <SelectTrigger className="text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="template">Template</SelectItem>
+                          <SelectItem value="example">Beispiel</SelectItem>
+                          <SelectItem value="reference">Referenz</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Inhalt</Label>
+                    <Textarea
+                      placeholder="Markdown-Inhalt..."
+                      value={editingFile.content}
+                      onChange={(e) => setEditingFile({ ...editingFile, content: e.target.value })}
+                      className="font-mono text-xs min-h-[300px]"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      {editingFile.content.length > 1024
+                        ? `${(editingFile.content.length / 1024).toFixed(1)} KB`
+                        : `${editingFile.content.length} B`} / 100 KB
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setFileDialogOpen(false)}>
+                      Abbrechen
+                    </Button>
+                    <Button size="sm" onClick={handleSaveFile} disabled={savingFile} className="gap-1.5">
+                      {savingFile ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+                      Speichern
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* Config Tab */}

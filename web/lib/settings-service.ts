@@ -174,9 +174,11 @@ export interface SkillDetail {
 }
 
 export interface SkillFile {
-  name: string;
+  id: string;
+  filename: string;
+  file_type: string;
   size: number;
-  last_modified: string | null;
+  updated_at: string | null;
 }
 
 export interface SkillUpdateRequest {
@@ -435,7 +437,7 @@ class SettingsService {
     );
   }
 
-  // ── Skill Files (S3 Directory) ──
+  // ── Skill Files (PostgreSQL) ──
 
   async getSkillFiles(
     skillId: string
@@ -443,28 +445,31 @@ class SettingsService {
     return api.get<{ files: SkillFile[] }>(`/skills/${skillId}/files`);
   }
 
+  async getSkillFile(
+    skillId: string,
+    fileId: string
+  ): Promise<{ id: string; filename: string; content: string; file_type: string; size: number; updated_at: string | null }> {
+    return api.get(`/skills/${skillId}/files/${fileId}`);
+  }
+
   async uploadSkillFile(
     skillId: string,
-    file: File,
-    path?: string
-  ): Promise<{ name: string; size: number; message: string }> {
-    const formData = new FormData();
-    formData.append("file", file);
-    if (path) {
-      formData.append("path", path);
-    }
-    return api.upload<{ name: string; size: number; message: string }>(
+    filename: string,
+    content: string,
+    fileType: string = "reference"
+  ): Promise<{ id: string; filename: string; size: number }> {
+    return api.post<{ id: string; filename: string; size: number }>(
       `/skills/${skillId}/files`,
-      formData
+      { filename, content, file_type: fileType }
     );
   }
 
   async deleteSkillFile(
     skillId: string,
-    filePath: string
-  ): Promise<{ message: string }> {
-    return api.delete<{ message: string }>(
-      `/skills/${skillId}/files/${filePath}`
+    fileId: string
+  ): Promise<{ deleted: boolean }> {
+    return api.delete<{ deleted: boolean }>(
+      `/skills/${skillId}/files/${fileId}`
     );
   }
 

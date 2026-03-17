@@ -9,6 +9,7 @@ from models.integration import IntegrationToken
 from models.telos_snapshot import TelosSnapshot
 from models.mcp_server import McpServer
 from models.api_werkzeug import ApiWerkzeug
+from models.skill_file import SkillFile
 from models.routine import (
     Routine,
     RoutineSkill,
@@ -44,4 +45,5 @@ __all__ = [
     "PushSubscription",
     "McpServer",
     "ApiWerkzeug",
+    "SkillFile",
 ]
