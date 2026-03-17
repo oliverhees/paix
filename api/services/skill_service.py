@@ -491,6 +491,28 @@ class SkillService:
             except Exception as e:
                 return f"Error fetching {url}: {str(e)}"
 
+        # Handle call_skill — invoke another skill with recursion guard
+        if tool_name == "call_skill":
+            target_skill_id = tool_input.get("skill_id", "")
+            skill_input = tool_input.get("input", "")
+
+            if not target_skill_id:
+                return "Error: skill_id is required"
+
+            # Recursion guard — check execution depth
+            current_depth = getattr(self, '_current_execution_depth', 0)
+            if current_depth >= 3:
+                return f"Error: Maximum skill nesting depth (3) reached. Cannot call '{target_skill_id}'."
+
+            try:
+                self._current_execution_depth = current_depth + 1
+                result = await self.execute(db, user_id, target_skill_id, skill_input)
+                return result.get("output", f"Skill '{target_skill_id}' produced no output.")
+            except Exception as e:
+                return f"Error calling skill '{target_skill_id}': {str(e)}"
+            finally:
+                self._current_execution_depth = current_depth
+
         # Handle built-in tools that don't go through the LLM skill pipeline
         if tool_name == "web_search":
             import os
@@ -656,6 +678,24 @@ class SkillService:
                         "type": {"type": "string", "description": "Content type: text/markdown, text/html, etc."},
                     },
                     "required": ["title", "content", "type"],
+                },
+            },
+            {
+                "name": "call_skill",
+                "description": "Execute another skill by its ID. Use this to chain skills together — e.g., run a research skill first, then a writing skill with the results.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "skill_id": {
+                            "type": "string",
+                            "description": "The ID of the skill to call (e.g. 'aiianer-daily-briefing', 'content_pipeline')",
+                        },
+                        "input": {
+                            "type": "string",
+                            "description": "Input text or instructions for the skill",
+                        },
+                    },
+                    "required": ["skill_id"],
                 },
             },
         ]

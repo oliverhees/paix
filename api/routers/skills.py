@@ -118,11 +118,15 @@ Der Skill laeuft innerhalb von PAI-X und hat Zugriff auf folgende Tools. Nutze d
 ### Content & Ausgabe
 - **create_artifact**: Substanziellen Content (Dokumente, Code, HTML, Diagramme, SVG) in einem Side-Panel neben dem Chat anzeigen. Parameter: title (string), content (string), type (string: "text/markdown", "text/html", "application/javascript", "image/svg+xml", "application/vnd.ant.mermaid")
 
+### Skill-Verkettung
+- **call_skill**: Einen anderen Skill aufrufen. Parameter: skill_id (string), input (string). Ermoeglicht Skill-Pipelines: z.B. erst recherchieren, dann Artikel schreiben. Max 3 Ebenen tief.
+
 ### Wichtige Regeln fuer Skills
 1. **Dateien speichern**: Nutze `storage_write` mit sinnvollen Pfaden (z.B. "briefings/briefing-2026-03-17.md"). NICHT "/mnt/..." oder lokale Pfade — es gibt kein lokales Dateisystem.
 2. **Webrecherche**: Nutze `web_search` fuer Suchen und `web_fetch` um die gefundenen URLs zu lesen.
 3. **Ergebnisse anzeigen**: Nutze `create_artifact` fuer laengere Dokumente die der User sehen soll.
 4. **Kombination**: Skills koennen mehrere Tools kombinieren. Z.B. web_search → web_fetch → storage_write → create_artifact.
+5. **Skill-Pipelines**: Nutze `call_skill` um andere Skills aufzurufen und Ergebnisse zu verketten.
 
 ## Skill-Erstellung
 
