@@ -83,6 +83,11 @@ class UserMeResponse(BaseModel):
     persona_about_user: str | None = None
     persona_communication: str | None = None
     brave_search_api_key: str | None = None
+    s3_endpoint_url: str | None = None
+    s3_access_key: str | None = None
+    s3_secret_key: str | None = None
+    s3_bucket_name: str | None = None
+    s3_region: str | None = None
     created_at: datetime | None = None
 
 
@@ -250,6 +255,11 @@ async def get_me(user: User = Depends(get_current_user)):
         persona_about_user=user.persona_about_user,
         persona_communication=user.persona_communication,
         brave_search_api_key=_mask_api_key(user.brave_search_api_key),
+        s3_endpoint_url=user.s3_endpoint_url,
+        s3_access_key=user.s3_access_key,
+        s3_secret_key=_mask_api_key(user.s3_secret_key),
+        s3_bucket_name=user.s3_bucket_name,
+        s3_region=user.s3_region,
         created_at=user.created_at,
     )
 
@@ -264,6 +274,11 @@ class UpdateMeRequest(BaseModel):
     persona_about_user: str | None = None
     persona_communication: str | None = None
     brave_search_api_key: str | None = None
+    s3_endpoint_url: str | None = None
+    s3_access_key: str | None = None
+    s3_secret_key: str | None = None
+    s3_bucket_name: str | None = None
+    s3_region: str | None = None
 
 
 @router.put("/auth/me", response_model=UserMeResponse)
@@ -292,6 +307,16 @@ async def update_me(
     if request.brave_search_api_key is not None:
         # Allow clearing by sending empty string
         user.brave_search_api_key = request.brave_search_api_key or None
+    if request.s3_endpoint_url is not None:
+        user.s3_endpoint_url = request.s3_endpoint_url or None
+    if request.s3_access_key is not None:
+        user.s3_access_key = request.s3_access_key or None
+    if request.s3_secret_key is not None and not request.s3_secret_key.startswith("*") and "..." not in request.s3_secret_key:
+        user.s3_secret_key = request.s3_secret_key or None
+    if request.s3_bucket_name is not None:
+        user.s3_bucket_name = request.s3_bucket_name or None
+    if request.s3_region is not None:
+        user.s3_region = request.s3_region or None
     db.add(user)
     await db.flush()
     return UserMeResponse(
@@ -306,5 +331,10 @@ async def update_me(
         persona_about_user=user.persona_about_user,
         persona_communication=user.persona_communication,
         brave_search_api_key=_mask_api_key(user.brave_search_api_key),
+        s3_endpoint_url=user.s3_endpoint_url,
+        s3_access_key=user.s3_access_key,
+        s3_secret_key=_mask_api_key(user.s3_secret_key),
+        s3_bucket_name=user.s3_bucket_name,
+        s3_region=user.s3_region,
         created_at=user.created_at,
     )

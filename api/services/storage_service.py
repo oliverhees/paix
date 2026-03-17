@@ -257,6 +257,24 @@ class StorageService:
 
         return {"url": url, "key": key, "expires_in": expires_in}
 
+    # ── User-specific client ──
+
+    def create_client_for_user(
+        self, endpoint_url: str, access_key: str, secret_key: str, region: str
+    ):
+        """Create a boto3 S3 client with user-specific credentials."""
+        return boto3.client(
+            "s3",
+            endpoint_url=endpoint_url,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name=region,
+            config=BotoConfig(
+                signature_version="s3v4",
+                s3={"addressing_style": "path"},
+            ),
+        )
+
     # ── Status ──
 
     async def get_status(self) -> dict:
