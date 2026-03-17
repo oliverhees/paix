@@ -190,12 +190,19 @@ export interface SkillExecuteRequest {
   parameters?: Record<string, string>;
 }
 
+export interface SkillToolCall {
+  name: string;
+  input: Record<string, unknown>;
+  round?: number;
+}
+
 export interface SkillExecutionResult {
   id: string;
   skill_id: string;
   status: string;
   output: string;
   duration_ms: number;
+  tool_calls?: SkillToolCall[];
 }
 
 export interface SkillLogEntry {

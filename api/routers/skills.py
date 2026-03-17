@@ -772,6 +772,7 @@ async def execute_skill(
             "status": result["status"],
             "output": result["output"],
             "duration_ms": result["duration_ms"],
+            "tool_calls": result.get("tool_calls", []),
         }
     }
 

@@ -69,6 +69,7 @@ import {
   type SkillDetail,
   type SkillLogEntry,
   type SkillParameterDef,
+  type SkillToolCall,
   type McpServer,
   type SkillCreateRequest,
   type SkillGenerateMessage,
@@ -874,6 +875,8 @@ function SkillDetailView({
   const [executing, setExecuting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [executionResult, setExecutionResult] = useState<string | null>(null);
+  const [executionToolCalls, setExecutionToolCalls] = useState<SkillToolCall[]>([]);
+  const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const [userInput, setUserInput] = useState("");
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("overview");
@@ -941,6 +944,13 @@ function SkillDetailView({
     if (!skill) return;
     setExecuting(true);
     setExecutionResult(null);
+    setExecutionToolCalls([]);
+    setToolCallsExpanded(false);
+
+    // Request browser notification permission on first execution
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
 
     try {
       const data = await settingsService.executeSkill(skillId, {
@@ -949,9 +959,23 @@ function SkillDetailView({
           Object.keys(paramValues).length > 0 ? paramValues : undefined,
       });
       setExecutionResult(data.execution.output);
+      setExecutionToolCalls(data.execution.tool_calls || []);
       toast.success(
         `Skill ausgefuehrt in ${formatDuration(data.execution.duration_ms)}`
       );
+
+      // Browser notification when tab is in background
+      if (
+        "Notification" in window &&
+        Notification.permission === "granted" &&
+        document.hidden
+      ) {
+        new Notification("PAI-X — Skill abgeschlossen", {
+          body: `${skill.name} wurde erfolgreich ausgefuehrt`,
+          icon: "/icon.png",
+        });
+      }
+
       fetchLogs();
     } catch (err) {
       const msg =
@@ -1270,10 +1294,50 @@ function SkillDetailView({
                   Ergebnis
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <div className="whitespace-pre-wrap text-sm bg-muted rounded-lg p-4 max-h-96 overflow-y-auto">
                   {executionResult}
                 </div>
+
+                {executionToolCalls.length > 0 && (
+                  <div className="border rounded-lg">
+                    <button
+                      onClick={() => setToolCallsExpanded(!toolCallsExpanded)}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50 transition-colors rounded-lg"
+                    >
+                      <Wrench className="size-3.5" />
+                      <span>{executionToolCalls.length} Tool-Call{executionToolCalls.length !== 1 ? "s" : ""} ausgefuehrt</span>
+                      {toolCallsExpanded ? (
+                        <ChevronUp className="size-3.5 ml-auto" />
+                      ) : (
+                        <ChevronDown className="size-3.5 ml-auto" />
+                      )}
+                    </button>
+                    {toolCallsExpanded && (
+                      <div className="border-t px-3 py-2 space-y-2">
+                        {executionToolCalls.map((tc, i) => (
+                          <div
+                            key={i}
+                            className="text-xs bg-muted/50 rounded-md p-2 space-y-1"
+                          >
+                            <div className="flex items-center gap-1.5 font-medium text-foreground">
+                              <Code2 className="size-3" />
+                              <span>{tc.name}</span>
+                              {tc.round && (
+                                <Badge variant="outline" className="ml-auto text-[10px] px-1 py-0">
+                                  Runde {tc.round}
+                                </Badge>
+                              )}
+                            </div>
+                            <pre className="text-[11px] text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all font-mono">
+                              {JSON.stringify(tc.input, null, 2)}
+                            </pre>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
