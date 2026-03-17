@@ -6,6 +6,7 @@ import { Bell, BellRing, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
+import { useActivityCount } from "@/components/pai/activity-feed";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -46,6 +47,7 @@ function timeAgo(dateStr: string | null): string {
 
 export function NotificationBell() {
   const router = useRouter();
+  const activityCount = useActivityCount(30000);
   const [counts, setCounts] = useState<NotificationCounts>({ pinned: 0, unread: 0 });
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -116,7 +118,7 @@ export function NotificationBell() {
     router.push("/routines");
   }
 
-  const totalBadge = counts.unread;
+  const totalBadge = counts.unread + activityCount;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

@@ -807,6 +807,85 @@ async def get_skill_analytics(
     }
 
 
+@router.get("/skills/activity-feed")
+async def get_activity_feed(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=30, le=100),
+    since: str = Query(default=None),
+):
+    """Live activity feed — all skill and routine executions, most recent first."""
+    from datetime import datetime as _dt
+    from models.routine import RoutineRun, Routine
+
+    since_dt = None
+    if since:
+        try:
+            since_dt = _dt.fromisoformat(since)
+        except ValueError:
+            pass
+
+    # ── Skill executions ──
+    skill_filters = [SkillExecution.user_id == user.id]
+    if since_dt:
+        skill_filters.append(SkillExecution.created_at > since_dt)
+
+    skill_result = await db.execute(
+        select(SkillExecution)
+        .where(*skill_filters)
+        .order_by(SkillExecution.created_at.desc())
+        .limit(limit)
+    )
+    skill_events = [
+        {
+            "id": str(e.id),
+            "type": "skill",
+            "name": e.skill_id,
+            "status": e.status,
+            "duration_ms": e.duration_ms,
+            "output_preview": (e.output_summary or "")[:200],
+            "error": e.error_message,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        }
+        for e in skill_result.scalars().all()
+    ]
+
+    # ── Routine runs ──
+    routine_filters = [RoutineRun.user_id == user.id]
+    if since_dt:
+        routine_filters.append(RoutineRun.created_at > since_dt)
+
+    routine_result = await db.execute(
+        select(RoutineRun, Routine.name)
+        .join(Routine, RoutineRun.routine_id == Routine.id, isouter=True)
+        .where(*routine_filters)
+        .order_by(RoutineRun.created_at.desc())
+        .limit(limit)
+    )
+    routine_events = [
+        {
+            "id": str(row[0].id),
+            "type": "workflow",
+            "name": row[1] or "Unbekannt",
+            "status": row[0].status,
+            "duration_ms": row[0].duration_ms,
+            "output_preview": (row[0].result_summary or "")[:200],
+            "error": row[0].error_message,
+            "created_at": row[0].created_at.isoformat() if row[0].created_at else None,
+        }
+        for row in routine_result.all()
+    ]
+
+    # ── Merge & sort ──
+    all_events = sorted(
+        skill_events + routine_events,
+        key=lambda e: e["created_at"] or "",
+        reverse=True,
+    )[:limit]
+
+    return {"events": all_events, "count": len(all_events)}
+
+
 @router.get("/skills/{skill_id}")
 async def get_skill(
     skill_id: str,

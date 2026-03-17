@@ -20,7 +20,9 @@ import {
   Play,
   ArrowRight,
   Inbox,
+  Activity,
 } from "lucide-react";
+import { ActivityFeed } from "@/components/pai/activity-feed";
 import { api } from "@/lib/api";
 
 /* ── Types ─────────────────────────────────────────── */
@@ -232,6 +234,25 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Live Activity Feed */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="size-5" />
+                Live Aktivitaeten
+              </CardTitle>
+              <CardDescription>Echtzeit-Monitor fuer Skills und Workflows</CardDescription>
+            </div>
+            <span className="text-xs text-muted-foreground">Auto-Refresh 5s</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ActivityFeed limit={15} pollInterval={5000} />
         </CardContent>
       </Card>
 
