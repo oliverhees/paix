@@ -1419,8 +1419,9 @@ export default function WerkzeugePage() {
       }
       // Auto-set defaults for known presets
       if (preset.id === "ghost-cms") {
-        if (!config.env) config.env = {};
-        config.env.GHOST_API_VERSION = "v5.0";
+        const envObj = (config.env || {}) as Record<string, string>;
+        envObj.GHOST_API_VERSION = "v5.0";
+        config.env = envObj;
       }
       const result = await settingsService.createWerkzeug({
         name: preset.id,
