@@ -10,7 +10,7 @@ from models.database import init_db, close_db
 from routers import health, chat, calendar, telos, memory, models
 from routers import auth, skills, notifications, internal, integrations, reminders, werkzeuge, api_werkzeuge, routines, telegram
 from routers import agent_state, storage
-from routers import claude_oauth
+from routers import claude_oauth, marketplace
 from services.graphiti_service import graphiti_service
 from services.llm_service import llm_service
 from services.scheduler_service import start_scheduler, stop_scheduler, scheduler
@@ -90,6 +90,9 @@ app.include_router(api_werkzeuge.router, prefix="/api/v1", tags=["api-werkzeuge"
 app.include_router(routines.router, prefix="/api/v1", tags=["routines"])
 app.include_router(agent_state.router, prefix="/api/v1", tags=["agent-state"])
 app.include_router(storage.router, prefix="/api/v1", tags=["storage"])
+
+# Marketplace (public browse, auth for install/submit)
+app.include_router(marketplace.router, prefix="/api/v1", tags=["marketplace"])
 
 # Telegram webhook (public — Telegram verifies via bot token)
 app.include_router(telegram.router, prefix="/api/v1", tags=["telegram"])

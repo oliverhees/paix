@@ -16,6 +16,7 @@ import {
   FolderOpen,
   ChevronsUpDown,
   LogOut,
+  Store,
 } from "lucide-react";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -78,6 +79,11 @@ const navItems = [
     title: "Workflows",
     href: "/routines",
     icon: Timer,
+  },
+  {
+    title: "Marketplace",
+    href: "/marketplace",
+    icon: Store,
   },
   {
     title: "Erinnerungen",

@@ -10,6 +10,7 @@ from models.telos_snapshot import TelosSnapshot
 from models.mcp_server import McpServer
 from models.api_werkzeug import ApiWerkzeug
 from models.skill_file import SkillFile
+from models.marketplace import MarketplaceItem
 from models.routine import (
     Routine,
     RoutineSkill,
@@ -46,4 +47,5 @@ __all__ = [
     "McpServer",
     "ApiWerkzeug",
     "SkillFile",
+    "MarketplaceItem",
 ]
