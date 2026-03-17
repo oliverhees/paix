@@ -10,7 +10,7 @@ from services.llm_providers.base import LLMProvider, ToolUseResult  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-MAX_TOOL_ROUNDS = 3
+MAX_TOOL_ROUNDS = 30
 
 
 def _convert_tools_to_openai(tools: list[dict] | None) -> list[dict] | None:

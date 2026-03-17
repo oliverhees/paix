@@ -22,7 +22,7 @@ from services.llm_providers.factory import (
 
 logger = logging.getLogger(__name__)
 
-MAX_TOOL_ROUNDS = 3
+MAX_TOOL_ROUNDS = 30
 
 # Re-export so that ``from services.llm_service import ToolUseResult`` still works.
 __all__ = ["ToolUseResult", "LLMService", "llm_service", "get_user_anthropic_key", "get_user_api_key", "AVAILABLE_MODELS"]

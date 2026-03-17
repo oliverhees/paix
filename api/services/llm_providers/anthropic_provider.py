@@ -10,7 +10,7 @@ from services.llm_providers.base import LLMProvider, ToolUseResult  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-MAX_TOOL_ROUNDS = 3
+MAX_TOOL_ROUNDS = 30  # Support skills with many tool calls (briefings, research)
 
 
 class AnthropicProvider(LLMProvider):
