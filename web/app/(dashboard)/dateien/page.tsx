@@ -57,6 +57,7 @@ import {
   storageService,
   type StorageItem,
   type StorageStatus,
+  type StorageStats,
 } from "@/lib/storage-service";
 
 // ─── Helpers ──
@@ -344,6 +345,7 @@ function ItemRow({
 
 export default function DateienPage() {
   const [status, setStatus] = useState<StorageStatus | null>(null);
+  const [stats, setStats] = useState<StorageStats | null>(null);
   const [currentPath, setCurrentPath] = useState("");
   const [folders, setFolders] = useState<StorageItem[]>([]);
   const [files, setFiles] = useState<StorageItem[]>([]);
@@ -358,6 +360,15 @@ export default function DateienPage() {
   const [previewContent, setPreviewContent] = useState<string>("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const s = await storageService.getStats();
+      setStats(s);
+    } catch {
+      // Stats are non-critical, ignore errors
+    }
+  }, []);
 
   const fetchStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -387,9 +398,10 @@ export default function DateienPage() {
     }
   }, [currentPath]);
 
+  // Load status + stats in parallel on mount
   useEffect(() => {
-    fetchStatus();
-  }, [fetchStatus]);
+    Promise.all([fetchStatus(), fetchStats()]);
+  }, [fetchStatus, fetchStats]);
 
   useEffect(() => {
     if (status?.connected) {
@@ -422,6 +434,7 @@ export default function DateienPage() {
           : `${success} Dateien hochgeladen`
       );
       fetchFiles();
+      fetchStats();
     }
     setUploading(false);
   }
@@ -436,6 +449,7 @@ export default function DateienPage() {
       setNewFolderName("");
       setNewFolderOpen(false);
       fetchFiles();
+      fetchStats();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Fehler beim Erstellen";
       toast.error(msg);
@@ -450,6 +464,7 @@ export default function DateienPage() {
       await storageService.deleteObject(item.path, isFolder);
       toast.success(`${isFolder ? "Ordner" : "Datei"} gelöscht`);
       fetchFiles();
+      fetchStats();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Fehler beim Löschen";
       toast.error(msg);
@@ -494,10 +509,7 @@ export default function DateienPage() {
     setPreviewContent("");
     setPreviewLoading(true);
     try {
-      const { url } = await storageService.getDownloadUrl(item.path);
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error("Download fehlgeschlagen");
-      const text = await resp.text();
+      const text = await storageService.previewFile(item.path);
       setPreviewContent(text);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Vorschau fehlgeschlagen";
@@ -616,9 +628,20 @@ export default function DateienPage() {
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <HardDrive className="size-3.5" />
           <span>{status.bucket}</span>
-          <Badge variant="secondary" className="text-[10px]">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
             Verbunden
-          </Badge>
+          </span>
+          {stats && (stats.files > 0 || stats.folders > 0) && (
+            <>
+              <span className="text-muted-foreground/50">|</span>
+              <span>
+                {stats.folders > 0 && `${stats.folders} Ordner`}
+                {stats.folders > 0 && stats.files > 0 && " \u00b7 "}
+                {stats.files > 0 && `${stats.files} Dateien`}
+                {stats.total_size > 0 && ` \u00b7 ${formatFileSize(stats.total_size)} belegt`}
+              </span>
+            </>
+          )}
         </div>
       )}
 

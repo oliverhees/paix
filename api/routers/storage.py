@@ -19,6 +19,7 @@ Endpoints:
 
 import logging
 import mimetypes
+import time
 from typing import Optional
 
 import boto3
@@ -36,6 +37,9 @@ from routers.auth import get_current_user
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# ── S3 Client Cache (per user, 5 min TTL) ──
+_user_s3_clients: dict[str, tuple] = {}  # user_id -> (client, timestamp)
 
 
 # ── Request/Response Models ──
@@ -90,13 +94,21 @@ def _user_s3_configured(user: User) -> bool:
 
 
 def _get_user_s3_client(user: User):
-    """Create a boto3 S3 client with user-specific credentials."""
+    """Get or create a cached boto3 S3 client for a user (5 min TTL)."""
     if not _user_s3_configured(user):
         raise HTTPException(
             status_code=503,
             detail="Object Storage nicht konfiguriert - bitte erst Zugangsdaten in den Einstellungen eingeben",
         )
-    return boto3.client(
+
+    user_key = str(user.id)
+    cached = _user_s3_clients.get(user_key)
+
+    # Return cached client if still valid (5 min TTL)
+    if cached and (time.time() - cached[1]) < 300:
+        return cached[0]
+
+    client = boto3.client(
         "s3",
         endpoint_url=user.s3_endpoint_url,
         aws_access_key_id=user.s3_access_key,
@@ -107,6 +119,8 @@ def _get_user_s3_client(user: User):
             s3={"addressing_style": "path"},
         ),
     )
+    _user_s3_clients[user_key] = (client, time.time())
+    return client
 
 
 def _get_user_bucket(user: User) -> str:
@@ -378,6 +392,76 @@ async def delete_object(
         return {"deleted": 1, "path": path}
 
 
+@router.get("/storage/stats")
+async def get_storage_stats(user: User = Depends(get_current_user)):
+    """Get storage statistics: file count, folder count, total size."""
+    if not _user_s3_configured(user):
+        return {"files": 0, "folders": 0, "total_size": 0}
+
+    try:
+        client = _get_user_s3_client(user)
+        bucket = _get_user_bucket(user)
+        user_prefix = f"users/{user.id}/"
+        total_files = 0
+        total_folders: set[str] = set()
+        total_size = 0
+
+        paginator = client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket, Prefix=user_prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                if key.endswith("/"):
+                    total_folders.add(key)
+                else:
+                    total_files += 1
+                    total_size += obj.get("Size", 0)
+                # Track parent folders
+                relative = key.replace(user_prefix, "", 1)
+                parts = relative.split("/")
+                for i in range(len(parts) - 1):
+                    total_folders.add("/".join(parts[: i + 1]))
+
+        return {"files": total_files, "folders": len(total_folders), "total_size": total_size}
+    except Exception as e:
+        logger.error("Storage stats error: %s", e)
+        return {"files": 0, "folders": 0, "total_size": 0}
+
+
+@router.get("/storage/preview")
+async def preview_file(
+    path: str = Query(..., description="File path to preview"),
+    user: User = Depends(get_current_user),
+):
+    """Preview a text file (max 100 KB). Returns plain text content."""
+    client = _get_user_s3_client(user)
+    bucket = _get_user_bucket(user)
+
+    key = f"users/{user.id}/{path.lstrip('/')}"
+    try:
+        resp = client.get_object(Bucket=bucket, Key=key)
+        data = resp["Body"].read()
+        if len(data) > 100 * 1024:
+            raise HTTPException(
+                status_code=413,
+                detail="Datei zu gross fuer Vorschau (max 100 KB)",
+            )
+        text = data.decode("utf-8")
+        return Response(content=text, media_type="text/plain; charset=utf-8")
+    except HTTPException:
+        raise
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=415, detail="Binaerdatei — keine Vorschau moeglich"
+        )
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "NoSuchKey":
+            raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error("Preview error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/storage/config")
 async def get_storage_config(user: User = Depends(get_current_user)):
     """Get user's S3 storage configuration (secret key masked)."""
@@ -411,6 +495,9 @@ async def update_storage_config(
 
     db.add(user)
     await db.commit()
+
+    # Invalidate cached S3 client for this user
+    _user_s3_clients.pop(str(user.id), None)
 
     logger.info("Storage config updated by user %s", user.id)
     return {

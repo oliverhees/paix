@@ -51,6 +51,12 @@ export interface StorageConfig {
   configured: boolean;
 }
 
+export interface StorageStats {
+  files: number;
+  folders: number;
+  total_size: number;
+}
+
 // ─── Service ───
 
 class StorageService {
@@ -68,6 +74,25 @@ class StorageService {
 
   async getStatus(): Promise<StorageStatus> {
     return api.get<StorageStatus>("/storage/status");
+  }
+
+  async getStats(): Promise<StorageStats> {
+    return api.get<StorageStats>("/storage/stats");
+  }
+
+  async previewFile(path: string): Promise<string> {
+    const token = api.getAccessToken();
+    const response = await fetch(
+      `/api/v1/storage/preview?path=${encodeURIComponent(path)}`,
+      {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }
+    );
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ detail: "Vorschau fehlgeschlagen" }));
+      throw new Error(err.detail || `Preview failed: ${response.status}`);
+    }
+    return response.text();
   }
 
   async listFiles(prefix: string = ""): Promise<StorageListResponse> {
