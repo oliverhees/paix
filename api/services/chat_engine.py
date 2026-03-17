@@ -318,13 +318,19 @@ class ChatEngine:
         )
         servers = result.scalars().all()
 
+        import re
+        def _sanitize_tool_name(name: str) -> str:
+            """Sanitize tool name for Anthropic API: only a-zA-Z0-9_-"""
+            return re.sub(r'[^a-zA-Z0-9_-]', '_', name)[:128]
+
         tools: list[dict] = []
         for server in servers:
+            safe_server = _sanitize_tool_name(server.name)
             for tool in (server.tools or []):
                 if isinstance(tool, dict) and tool.get("name"):
-                    # Full tool schema from discovery
+                    safe_tool = _sanitize_tool_name(tool['name'])
                     tools.append({
-                        "name": f"mcp__{server.name}__{tool['name']}",
+                        "name": f"mcp__{safe_server}__{safe_tool}",
                         "description": tool.get("description", ""),
                         "input_schema": tool.get("input_schema", {
                             "type": "object",
@@ -332,9 +338,9 @@ class ChatEngine:
                         }),
                     })
                 elif isinstance(tool, str) and tool:
-                    # Legacy: tool name only (no schema)
+                    safe_tool = _sanitize_tool_name(tool)
                     tools.append({
-                        "name": f"mcp__{server.name}__{tool}",
+                        "name": f"mcp__{safe_server}__{safe_tool}",
                         "description": f"MCP tool '{tool}' from {server.name}",
                         "input_schema": {
                             "type": "object",
@@ -366,8 +372,10 @@ class ChatEngine:
             for ep in (w.endpoints or []):
                 if not isinstance(ep, dict) or not ep.get("name"):
                     continue
+                safe_w = re.sub(r'[^a-zA-Z0-9_-]', '_', w.name)[:50]
+                safe_ep = re.sub(r'[^a-zA-Z0-9_-]', '_', ep['name'])[:50]
                 tools.append({
-                    "name": f"api__{w.name}__{ep['name']}",
+                    "name": f"api__{safe_w}__{safe_ep}",
                     "description": ep.get("description", f"API call to {w.name}"),
                     "input_schema": ep.get("parameters", {
                         "type": "object",

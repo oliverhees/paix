@@ -465,9 +465,12 @@ async def create_skill(
 ):
     """Create a new custom skill for the authenticated user."""
     # Generate a unique skill_id from the name
+    import re
     base_id = request.name.lower().replace(" ", "_").replace("-", "_")
-    # Strip non-alphanumeric/underscore characters
-    base_id = "".join(c for c in base_id if c.isalnum() or c == "_")
+    # Strip everything except ASCII a-z, 0-9, underscore (no umlauts!)
+    base_id = re.sub(r'[^a-z0-9_]', '', base_id)
+    if not base_id:
+        base_id = "skill"
     skill_id = f"custom_{base_id}_{uuid.uuid4().hex[:8]}"
 
     # If skill_md is provided, parse it to populate fields
