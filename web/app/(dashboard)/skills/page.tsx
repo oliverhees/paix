@@ -39,6 +39,9 @@ import {
   TrendingUp,
   Activity,
   FolderOpen,
+  Link2,
+  ArrowRight,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -1277,10 +1280,12 @@ function SkillDetailView({
   skillId,
   onBack,
   onDeleted,
+  allSkills,
 }: {
   skillId: string;
   onBack: () => void;
   onDeleted: () => void;
+  allSkills: SkillItem[];
 }) {
   const [skill, setSkill] = useState<SkillDetail | null>(null);
   const [logs, setLogs] = useState<SkillLogEntry[]>([]);
@@ -1305,6 +1310,9 @@ function SkillDetailView({
   const [editingTools, setEditingTools] = useState(false);
   const [draftTools, setDraftTools] = useState<string[]>([]);
   const [savingTools, setSavingTools] = useState(false);
+
+  // Chain state
+  const [savingChain, setSavingChain] = useState(false);
 
   // Skill files state
   const [skillFiles, setSkillFiles] = useState<SkillFile[]>([]);
@@ -1525,6 +1533,52 @@ function SkillDetailView({
       toast.error("Fehler beim Speichern");
     } finally {
       setSavingMd(false);
+    }
+  }
+
+  // ── Chain helpers ──
+
+  // Build the pipeline chain by following next_skill_id links
+  const pipelineChain = useMemo(() => {
+    const chain: { id: string; name: string; icon?: string | null }[] = [];
+    if (!skill) return chain;
+    chain.push({ id: skillId, name: skill.name, icon: skill.icon });
+    const visited = new Set<string>([skillId]);
+    let currentId = skill.next_skill_id;
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const s = allSkills.find((sk) => sk.id === currentId);
+      if (!s) break;
+      chain.push({ id: s.id, name: s.name, icon: s.icon });
+      currentId = s.next_skill_id;
+    }
+    return chain;
+  }, [skill, skillId, allSkills]);
+
+  // Detect if selecting a target would create a cycle
+  function wouldCreateCycle(targetId: string): boolean {
+    const visited = new Set<string>([skillId]);
+    let currentId: string | null | undefined = targetId;
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const s = allSkills.find((sk) => sk.id === currentId);
+      if (!s) break;
+      currentId = s.next_skill_id;
+    }
+    return currentId === skillId;
+  }
+
+  async function handleSetNextSkill(nextId: string | null) {
+    if (!skill) return;
+    setSavingChain(true);
+    try {
+      await settingsService.updateSkill(skillId, { next_skill_id: nextId ?? "" });
+      setSkill({ ...skill, next_skill_id: nextId });
+      toast.success(nextId ? "Verkettung gespeichert" : "Verkettung entfernt");
+    } catch {
+      toast.error("Fehler beim Speichern der Verkettung");
+    } finally {
+      setSavingChain(false);
     }
   }
 
@@ -1831,6 +1885,84 @@ function SkillDetailView({
               </CardContent>
             </Card>
           )}
+
+          {/* Skill Chain Section */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Link2 className="size-4 text-blue-400" />
+                Verkettung
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Nach Abschluss automatisch einen anderen Skill ausfuehren.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Select
+                  value={skill.next_skill_id ?? "__none__"}
+                  onValueChange={(val) => handleSetNextSkill(val === "__none__" ? null : val)}
+                  disabled={savingChain}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Skill auswaehlen..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Kein Folge-Skill</SelectItem>
+                    {allSkills
+                      .filter((s) => s.id !== skillId)
+                      .map((s) => {
+                        const cycle = wouldCreateCycle(s.id);
+                        return (
+                          <SelectItem key={s.id} value={s.id} disabled={cycle}>
+                            {s.icon ?? "⚡"} {s.name}
+                            {cycle ? " (Zyklus!)" : ""}
+                          </SelectItem>
+                        );
+                      })}
+                  </SelectContent>
+                </Select>
+                {skill.next_skill_id && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleSetNextSkill(null)}
+                    disabled={savingChain}
+                    title="Verkettung entfernen"
+                  >
+                    {savingChain ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <X className="size-4" />
+                    )}
+                  </Button>
+                )}
+              </div>
+
+              {/* Pipeline Preview */}
+              {pipelineChain.length > 1 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground font-medium">Pipeline-Vorschau:</p>
+                  <div className="flex items-center gap-1 flex-wrap text-xs">
+                    {pipelineChain.map((step, i) => (
+                      <span key={step.id} className="flex items-center gap-1">
+                        {i > 0 && <ArrowRight className="size-3 text-muted-foreground shrink-0" />}
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 ${
+                            i === 0
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {step.icon ?? "⚡"} {step.name}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {!skill.active && (
             <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
@@ -3203,6 +3335,7 @@ export default function SkillsPage() {
           skillId={selectedSkillId}
           onBack={handleBackToList}
           onDeleted={handleBackToList}
+          allSkills={skills}
         />
       </div>
     );

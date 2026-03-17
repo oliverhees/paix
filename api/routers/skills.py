@@ -82,6 +82,7 @@ class SkillUpdateRequest(BaseModel):
     category: str | None = None
     icon: str | None = None
     output_path: str | None = None
+    next_skill_id: str | None = None
 
 
 class SkillExecuteRequest(BaseModel):
@@ -100,6 +101,7 @@ class SkillCreateRequest(BaseModel):
     category: str | None = None
     icon: str | None = None
     output_path: str | None = None
+    next_skill_id: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -378,6 +380,7 @@ def _cfg_to_dict(cfg: SkillConfig, execution_stats: dict | None = None) -> dict:
         "category": cfg.category,
         "icon": cfg.icon,
         "output_path": cfg.output_path,
+        "next_skill_id": cfg.next_skill_id,
         "metadata": cfg.metadata_json or {},
         "last_execution": stats.get("last_execution"),
         "execution_count": stats.get("execution_count", 0),
@@ -504,6 +507,7 @@ async def create_skill(
         category=request.category,
         icon=request.icon,
         output_path=request.output_path,
+        next_skill_id=request.next_skill_id,
         active=True,
         autonomy_level=3,
         config={},
@@ -872,6 +876,9 @@ async def update_skill(
         update_values["icon"] = request.icon
     if request.output_path is not None:
         update_values["output_path"] = request.output_path
+    if request.next_skill_id is not None:
+        # Empty string means "remove chain"
+        update_values["next_skill_id"] = request.next_skill_id if request.next_skill_id else None
 
     if update_values:
         await db.execute(

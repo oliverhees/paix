@@ -49,6 +49,8 @@ class SkillConfig(Base):
     output_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Anthropic Skills Open Standard – full SKILL.md content (YAML frontmatter + markdown body)
     skill_md: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Chain: next skill to execute after this one completes successfully
+    next_skill_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # Author, version, tags, etc.
     metadata_json: Mapped[dict] = mapped_column(
         "skill_metadata", JSONB, default=dict

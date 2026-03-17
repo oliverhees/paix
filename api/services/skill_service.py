@@ -862,6 +862,27 @@ class SkillService:
         db.add(execution)
         await db.flush()
 
+        # ── Skill Chaining: auto-execute next skill if configured ──
+        if status == "success" and config.next_skill_id:
+            current_depth = getattr(self, '_current_execution_depth', 0)
+            if current_depth < 3:
+                try:
+                    self._current_execution_depth = current_depth + 1
+                    chain_result = await self.execute(
+                        db, user_id, config.next_skill_id,
+                        user_input=f"Vorheriger Skill '{skill_id}' hat folgendes Ergebnis geliefert:\n\n{output_text[:2000]}",
+                    )
+                    if chain_result.get("status") == "success":
+                        output_text += f"\n\n---\n Verketteter Skill '{config.next_skill_id}' erfolgreich ausgefuehrt."
+                    else:
+                        output_text += f"\n\n---\n Verketteter Skill '{config.next_skill_id}' fehlgeschlagen: {chain_result.get('error', '')}"
+                except Exception as e:
+                    output_text += f"\n\n---\n Verketteter Skill '{config.next_skill_id}' Fehler: {str(e)}"
+                finally:
+                    self._current_execution_depth = current_depth
+            else:
+                output_text += f"\n\n---\n Verketteter Skill '{config.next_skill_id}' uebersprungen: Max. Verschachtelungstiefe (3) erreicht."
+
         return {
             "status": status,
             "output": output_text,

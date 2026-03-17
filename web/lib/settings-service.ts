@@ -154,6 +154,7 @@ export interface SkillItem {
   category?: string | null;
   icon?: string | null;
   output_path?: string | null;
+  next_skill_id?: string | null;
 }
 
 export interface SkillDetail {
@@ -171,6 +172,7 @@ export interface SkillDetail {
   category?: string | null;
   icon?: string | null;
   output_path?: string | null;
+  next_skill_id?: string | null;
 }
 
 export interface SkillFile {
@@ -187,6 +189,7 @@ export interface SkillUpdateRequest {
   config?: Record<string, unknown>;
   allowed_tools?: string[];
   skill_md?: string;
+  next_skill_id?: string | null;
 }
 
 export interface SkillCreateRequest {
@@ -197,6 +200,7 @@ export interface SkillCreateRequest {
   parameters?: Record<string, SkillParameterDef>;
   metadata?: Record<string, string>;
   skill_md?: string;
+  next_skill_id?: string | null;
 }
 
 export interface SkillExecuteRequest {
