@@ -7,7 +7,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
-from sqlalchemy import case, coalesce, func, select, update, delete
+from sqlalchemy import case, func, select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.dependencies import get_current_user
@@ -833,7 +833,7 @@ async def get_activity_feed(
     skill_result = await db.execute(
         select(SkillExecution)
         .where(*skill_filters)
-        .order_by(coalesce(SkillExecution.completed_at, SkillExecution.created_at).desc())
+        .order_by(func.coalesce(SkillExecution.completed_at, SkillExecution.created_at).desc())
         .limit(limit)
     )
     skill_events = [
