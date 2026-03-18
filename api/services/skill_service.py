@@ -799,7 +799,10 @@ class SkillService:
             }
 
         # Build the prompt
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         system_prompt = definition.get("system_prompt", "")
+        system_prompt = f"Aktuelles Datum: {today}\n\n" + system_prompt
 
         # Load skill directory files from DB (template, examples, references)
         skill_context = await self._load_skill_directory(db, user_id, skill_id)
@@ -822,6 +825,11 @@ class SkillService:
         try:
             user_api_key = await get_user_anthropic_key(user_id, db)
             tools = self._get_skill_tools()
+
+            # Also load MCP tools so skills can use Ghost, GitHub, etc.
+            from services.chat_engine import chat_engine
+            mcp_tools = await chat_engine._load_mcp_tools(db, user_id)
+            tools.extend(mcp_tools)
 
             # Create a tool executor bound to this user's context
             async def tool_executor(name: str, input_data: dict) -> str:
