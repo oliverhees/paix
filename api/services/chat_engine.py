@@ -8,6 +8,8 @@ Delivers events to any ChannelAdapter.
 import json
 import logging
 import uuid
+import zoneinfo
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -134,6 +136,31 @@ class ChatEngine:
         persona_name = user.persona_name or "PAI-X"
         user_id = str(user.id)
 
+        # ── Current date/time (always first in system prompt) ──
+        GERMAN_DAYS = {
+            "Monday": "Montag", "Tuesday": "Dienstag", "Wednesday": "Mittwoch",
+            "Thursday": "Donnerstag", "Friday": "Freitag", "Saturday": "Samstag",
+            "Sunday": "Sonntag",
+        }
+        GERMAN_MONTHS = {
+            "January": "Januar", "February": "Februar", "March": "Maerz",
+            "April": "April", "May": "Mai", "June": "Juni", "July": "Juli",
+            "August": "August", "September": "September", "October": "Oktober",
+            "November": "November", "December": "Dezember",
+        }
+        try:
+            berlin_tz = zoneinfo.ZoneInfo("Europe/Berlin")
+            now_berlin = datetime.now(timezone.utc).astimezone(berlin_tz)
+            day_en = now_berlin.strftime("%A")
+            month_en = now_berlin.strftime("%B")
+            day_de = GERMAN_DAYS.get(day_en, day_en)
+            month_de = GERMAN_MONTHS.get(month_en, month_en)
+            date_str = f"{day_de}, {now_berlin.strftime('%d')}. {month_de} {now_berlin.strftime('%Y')}, {now_berlin.strftime('%H:%M')} Uhr"
+        except Exception:
+            date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+        date_prefix = f"Aktuelles Datum und Uhrzeit: {date_str}\n\n"
+
         # Structured persona sections
         sections = []
         if user.persona_personality:
@@ -242,7 +269,7 @@ class ChatEngine:
             except Exception:
                 pass
 
-        return base_persona + telos_text + memory_text + agent_state_text
+        return date_prefix + base_persona + telos_text + memory_text + agent_state_text
 
     # ──────────────────────────────────────────────
     # Session Management

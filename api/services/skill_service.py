@@ -798,11 +798,30 @@ class SkillService:
                 "duration_ms": 0,
             }
 
-        # Build the prompt
+        # Build the prompt with German date/time
         from datetime import datetime, timezone
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        import zoneinfo
+        GERMAN_DAYS = {
+            "Monday": "Montag", "Tuesday": "Dienstag", "Wednesday": "Mittwoch",
+            "Thursday": "Donnerstag", "Friday": "Freitag", "Saturday": "Samstag",
+            "Sunday": "Sonntag",
+        }
+        GERMAN_MONTHS = {
+            "January": "Januar", "February": "Februar", "March": "Maerz",
+            "April": "April", "May": "Mai", "June": "Juni", "July": "Juli",
+            "August": "August", "September": "September", "October": "Oktober",
+            "November": "November", "December": "Dezember",
+        }
+        try:
+            berlin_tz = zoneinfo.ZoneInfo("Europe/Berlin")
+            now_berlin = datetime.now(timezone.utc).astimezone(berlin_tz)
+            day_de = GERMAN_DAYS.get(now_berlin.strftime("%A"), now_berlin.strftime("%A"))
+            month_de = GERMAN_MONTHS.get(now_berlin.strftime("%B"), now_berlin.strftime("%B"))
+            date_str = f"{day_de}, {now_berlin.strftime('%d')}. {month_de} {now_berlin.strftime('%Y')}, {now_berlin.strftime('%H:%M')} Uhr"
+        except Exception:
+            date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         system_prompt = definition.get("system_prompt", "")
-        system_prompt = f"Aktuelles Datum: {today}\n\n" + system_prompt
+        system_prompt = f"Aktuelles Datum und Uhrzeit: {date_str}\n\n" + system_prompt
 
         # Load skill directory files from DB (template, examples, references)
         skill_context = await self._load_skill_directory(db, user_id, skill_id)
@@ -863,6 +882,7 @@ class SkillService:
             output_summary=output_text[:2000] if output_text else None,
             duration_ms=duration_ms,
             error_message=error_message,
+            completed_at=datetime.now(timezone.utc),
             metadata_json={
                 "parameters": parameters or {},
             },
