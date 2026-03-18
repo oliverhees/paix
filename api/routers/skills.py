@@ -7,7 +7,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
-from sqlalchemy import case, func, select, update, delete
+from sqlalchemy import case, coalesce, func, select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.dependencies import get_current_user
@@ -833,7 +833,7 @@ async def get_activity_feed(
     skill_result = await db.execute(
         select(SkillExecution)
         .where(*skill_filters)
-        .order_by(SkillExecution.created_at.desc())
+        .order_by(coalesce(SkillExecution.completed_at, SkillExecution.created_at).desc())
         .limit(limit)
     )
     skill_events = [
@@ -846,6 +846,7 @@ async def get_activity_feed(
             "output_preview": (e.output_summary or "")[:200],
             "error": e.error_message,
             "created_at": e.created_at.isoformat() if e.created_at else None,
+            "completed_at": e.completed_at.isoformat() if e.completed_at else None,
         }
         for e in skill_result.scalars().all()
     ]
@@ -876,10 +877,10 @@ async def get_activity_feed(
         for row in routine_result.all()
     ]
 
-    # ── Merge & sort ──
+    # ── Merge & sort (prefer completed_at for correct chained-skill ordering) ──
     all_events = sorted(
         skill_events + routine_events,
-        key=lambda e: e["created_at"] or "",
+        key=lambda e: e.get("completed_at") or e["created_at"] or "",
         reverse=True,
     )[:limit]
 

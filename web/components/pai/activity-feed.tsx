@@ -16,6 +16,7 @@ interface ActivityEvent {
   output_preview: string;
   error: string | null;
   created_at: string | null;
+  completed_at: string | null;
 }
 
 /* ── Helpers ──────────────────────────────────── */
@@ -98,8 +99,9 @@ export function ActivityFeed({ limit = 30, pollInterval = 5000 }: ActivityFeedPr
         }
 
         // Track latest timestamp for incremental polling
-        if (fetched.length > 0 && fetched[0].created_at) {
-          latestTimestamp.current = fetched[0].created_at;
+        if (fetched.length > 0) {
+          const latest = fetched[0].completed_at ?? fetched[0].created_at;
+          if (latest) latestTimestamp.current = latest;
         }
       } catch {
         // Silently fail on polling errors
@@ -171,9 +173,9 @@ export function ActivityFeed({ limit = 30, pollInterval = 5000 }: ActivityFeedPr
                 {statusIcon(event.status)}
               </span>
 
-              {/* Time */}
+              {/* Time (show completion time if available, else start time) */}
               <span className="text-xs text-muted-foreground shrink-0 w-11 tabular-nums">
-                {formatTime(event.created_at)}
+                {formatTime(event.completed_at ?? event.created_at)}
               </span>
 
               {/* Type icon + Name */}
