@@ -25,6 +25,8 @@ from services.graphiti_service import graphiti_service
 from services.docker_executor_service import docker_executor
 from services.channel_adapters.base import ChannelAdapter
 from services.token_budget import truncate_to_budget, get_budget_report
+from services.telos_scorer import score_dimensions, TELOS_DIMENSIONS
+from services.persona_loader import persona_loader
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
@@ -164,27 +166,12 @@ class ChatEngine:
             f"Aktuelles Datum und Uhrzeit: {date_str}", "temporal"
         ) + "\n\n"
 
-        # Structured persona sections
-        sections = []
-        if user.persona_personality:
-            sections.append(f"## Persoenlichkeit\n{user.persona_personality}")
-        if user.persona_about_user:
-            sections.append(f"## Ueber den Nutzer\n{user.persona_about_user}")
-        if user.persona_communication:
-            sections.append(f"## Kommunikationsstil\n{user.persona_communication}")
+        # Persona from markdown files (User -> System defaults -> fallback)
+        persona_text = persona_loader.load_persona(locale="de")
+        if not persona_text:
+            persona_text = f"Du bist {persona_name}, ein persoenlicher KI-Assistent."
 
-        if sections:
-            base_persona = f"Du bist {persona_name}.\n\n" + "\n\n".join(sections) + "\n\n"
-        elif user.persona_prompt:
-            # Fallback to legacy free-text field
-            base_persona = user.persona_prompt + "\n\n"
-        else:
-            base_persona = (
-                f"Du bist {persona_name}, ein persoenlicher AI-Assistent. "
-                "Du sprichst Deutsch, bist praezise, freundlich und proaktiv. "
-                "Du kennst den Nutzer, seine Ziele, Projekte und Kontakte aus dem TELOS-Profil "
-                "und dem Knowledge Graph. Antworte hilfreich und kontextbezogen.\n\n"
-            )
+        base_persona = persona_text + "\n\n"
 
         base_persona += (
             "ARTIFACTS: Wenn du substanziellen Content erstellst (Code-Dateien, Dokumente, "
@@ -195,12 +182,13 @@ class ChatEngine:
         )
         base_persona = truncate_to_budget(base_persona, "persona")
 
-        # TELOS context from PostgreSQL
+        # TELOS context from PostgreSQL — keyword-scored, budget-aware
         telos_text = ""
         if db is not None:
             try:
                 from models.telos_snapshot import TelosSnapshot
-                for dim_name in ["goals", "mission", "challenges"]:
+                all_dimensions: dict[str, str] = {}
+                for dim_name in TELOS_DIMENSIONS:
                     result = await db.execute(
                         select(TelosSnapshot)
                         .where(
@@ -219,14 +207,16 @@ class ChatEngine:
                             if e.get("status") != "archived" and e.get("content")
                         ]
                         if active:
-                            label = {"goals": "Ziele", "mission": "Mission", "challenges": "Herausforderungen"}.get(dim_name, dim_name)
-                            telos_text += f"\n\n{label} des Nutzers:\n" + "\n".join(
-                                f"- {g}" for g in active[:5]
-                            )
+                            content = "\n".join(f"- {g}" for g in active[:5])
+                            if content.strip():
+                                all_dimensions[dim_name] = content
+
+                if all_dimensions:
+                    telos_text = "\n\n## TELOS Profil\n" + score_dimensions(
+                        user_message, all_dimensions
+                    )
             except Exception:
                 pass
-
-        telos_text = truncate_to_budget(telos_text, "telos")
 
         # Memory context from semantic search
         memory_text = ""
