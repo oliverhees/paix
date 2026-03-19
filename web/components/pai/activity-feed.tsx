@@ -205,7 +205,7 @@ export function ActivityFeed({
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as ActivityEvent & { type: string };
-        if (data.type === "connected") return;
+        if ((data.type as string) === "connected") return;
 
         setEvents((prev) => {
           // Update existing event or prepend new
