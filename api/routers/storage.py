@@ -68,7 +68,7 @@ class StorageConfigRequest(BaseModel):
     endpoint_url: str = ""
     access_key: str = ""
     secret_key: str = ""
-    bucket_name: str = "paix-files"
+    bucket_name: str = "paione-files"
     region: str = "fsn1"
 
 
@@ -125,7 +125,7 @@ def _get_user_s3_client(user: User):
 
 def _get_user_bucket(user: User) -> str:
     """Get the user's bucket name, with fallback."""
-    return user.s3_bucket_name or "paix-files"
+    return user.s3_bucket_name or "paione-files"
 
 
 # ── Endpoints ──

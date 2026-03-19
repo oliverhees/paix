@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# PAI-X Graphiti Service Dependencies
+# PAIONE Graphiti Service Dependencies
 # ──────────────────────────────────────────────
 
 fastapi>=0.115.0

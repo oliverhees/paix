@@ -160,7 +160,7 @@ def _callback_html(success: bool, message: str) -> str:
     color = "#22c55e" if success else "#ef4444"
     return f"""<!DOCTYPE html>
 <html>
-<head><title>PAI-X OAuth</title>
+<head><title>PAIONE OAuth</title>
 <style>
   body {{ font-family: system-ui; display: flex; align-items: center; justify-content: center;
          min-height: 100vh; margin: 0; background: #0f172a; color: #f1f5f9; }}

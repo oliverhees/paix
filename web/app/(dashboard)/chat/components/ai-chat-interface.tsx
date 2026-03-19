@@ -357,7 +357,7 @@ export default function AIChatInterface() {
                         <button
                           key={artifact.id}
                           onClick={() => setActiveArtifact(artifact)}
-                          className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-sm text-blue-400 transition-colors hover:bg-blue-500/10 cursor-pointer"
+                          className="flex items-center gap-2 rounded-lg border border-orange-500/20 bg-orange-500/5 px-3 py-2 text-sm text-orange-400 transition-colors hover:bg-orange-500/10 cursor-pointer"
                         >
                           <CodeIcon className="size-4" />
                           <span>{artifact.title}</span>
@@ -431,7 +431,7 @@ export default function AIChatInterface() {
               <div className={cn(
                 "rounded-lg border p-3 text-sm font-mono",
                 activeCodeExecution.status === "running"
-                  ? "border-blue-500/20 bg-blue-500/5"
+                  ? "border-orange-500/20 bg-orange-500/5"
                   : activeCodeExecution.status === "completed"
                   ? "border-emerald-500/20 bg-emerald-500/5"
                   : "border-red-500/20 bg-red-500/5"
@@ -439,12 +439,12 @@ export default function AIChatInterface() {
                 <div className="flex items-center gap-2 mb-2">
                   <Terminal className={cn(
                     "size-4",
-                    activeCodeExecution.status === "running" ? "text-blue-400 animate-pulse" :
+                    activeCodeExecution.status === "running" ? "text-orange-400 animate-pulse" :
                     activeCodeExecution.status === "completed" ? "text-emerald-400" : "text-red-400"
                   )} />
                   <span className={cn(
                     "text-xs font-sans font-medium",
-                    activeCodeExecution.status === "running" ? "text-blue-400" :
+                    activeCodeExecution.status === "running" ? "text-orange-400" :
                     activeCodeExecution.status === "completed" ? "text-emerald-400" : "text-red-400"
                   )}>
                     {activeCodeExecution.status === "running"
@@ -489,7 +489,7 @@ export default function AIChatInterface() {
                     className={cn(
                       "flex items-start gap-2 rounded-lg border px-3 py-2 text-sm transition-colors",
                       tc.status === "running"
-                        ? "border-blue-500/20 bg-blue-500/5"
+                        ? "border-orange-500/20 bg-orange-500/5"
                         : tc.status === "completed"
                         ? "border-emerald-500/20 bg-emerald-500/5"
                         : "border-red-500/20 bg-red-500/5"
@@ -498,7 +498,7 @@ export default function AIChatInterface() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         {tc.status === "running" ? (
-                          <svg className="size-3.5 animate-spin text-blue-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <svg className="size-3.5 animate-spin text-orange-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M12 2v4m0 12v4m-8-10H2m20 0h-2m-2.93-6.07l-1.41 1.41M7.76 16.24l-1.41 1.41m0-11.31l1.41 1.41m8.48 8.48l1.41 1.41" />
                           </svg>
                         ) : tc.status === "completed" ? (
@@ -514,7 +514,7 @@ export default function AIChatInterface() {
                         )}
                         <span className={cn(
                           "font-medium",
-                          tc.status === "running" ? "text-blue-400" :
+                          tc.status === "running" ? "text-orange-400" :
                           tc.status === "completed" ? "text-emerald-400" : "text-red-400"
                         )}>
                           {formatToolName(tc.name)}
@@ -590,7 +590,7 @@ export default function AIChatInterface() {
 
           <h1 className="text-center text-2xl leading-normal font-medium lg:text-4xl">
             Hallo! <br /> Wie kann ich dir{" "}
-            <span className="bg-gradient-to-r from-purple-400 to-indigo-300 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-orange-400 to-amber-300 bg-clip-text text-transparent">
               heute helfen?
             </span>
           </h1>

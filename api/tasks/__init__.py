@@ -1,1 +1,1 @@
-"""PAI-X Celery Tasks — background jobs for proactive features and memory."""
+"""PAIONE Celery Tasks — background jobs for proactive features and memory."""

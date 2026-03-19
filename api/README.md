@@ -1,4 +1,4 @@
-# PAI-X API Backend
+# PAIONE API Backend
 
 FastAPI Backend mit LangGraph Agent-Orchestrierung.
 

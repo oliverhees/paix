@@ -678,7 +678,7 @@ function NotificationsSection() {
         <CardHeader>
           <CardTitle>Kanaele</CardTitle>
           <CardDescription>
-            Ueber welche Kanaele PAI-X dich erreichen darf.
+            Ueber welche Kanaele PAIONE dich erreichen darf.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -773,7 +773,7 @@ function AutonomySection() {
       <CardHeader>
         <CardTitle>Autonomie-Level</CardTitle>
         <CardDescription>
-          Bestimme, wie selbststaendig PAI-X pro Skill handeln darf. Level 1 =
+          Bestimme, wie selbststaendig PAIONE pro Skill handeln darf. Level 1 =
           immer fragen, Level 5 = volle Autonomie.
         </CardDescription>
       </CardHeader>
@@ -845,7 +845,7 @@ function AppearanceSection() {
       <CardHeader>
         <CardTitle>Darstellung</CardTitle>
         <CardDescription>
-          Passe das Erscheinungsbild von PAI-X an.
+          Passe das Erscheinungsbild von PAIONE an.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -906,9 +906,9 @@ function AboutSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Über PAI-X</CardTitle>
+        <CardTitle>Über PAIONE</CardTitle>
         <CardDescription>
-          Dein Personal AI Assistant
+          Personal AI · ONE
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -936,7 +936,7 @@ function AboutSection() {
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            PAI-X ist ein Produkt von HR Code Labs. Bei Fragen oder Feedback
+            PAIONE ist ein Produkt von HR Code Labs. Bei Fragen oder Feedback
             wende dich an{" "}
             <a
               href="mailto:oliver@hrcodelabs.de"
@@ -1616,7 +1616,7 @@ function PersonaSection() {
           <Label htmlFor="persona-name">Name des Assistenten</Label>
           <Input
             id="persona-name"
-            placeholder="PAI-X"
+            placeholder="PAIONE"
             value={personaName}
             onChange={(e) => {
               setPersonaName(e.target.value);
@@ -1833,7 +1833,7 @@ function StorageSection() {
     endpoint_url: "",
     access_key: "",
     secret_key: "",
-    bucket_name: "paix-files",
+    bucket_name: "paione-files",
     region: "fsn1",
   });
   const [configured, setConfigured] = useState(false);
@@ -1965,7 +1965,7 @@ function StorageSection() {
             <Label htmlFor="s3-bucket">Bucket Name</Label>
             <Input
               id="s3-bucket"
-              placeholder="paix-files"
+              placeholder="paione-files"
               value={config.bucket_name}
               onChange={(e) => setConfig((c) => ({ ...c, bucket_name: e.target.value }))}
             />
@@ -2291,7 +2291,7 @@ export default function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="about" className="gap-2">
             <Info className="h-4 w-4" />
-            Über PAI-X
+            Über PAIONE
           </TabsTrigger>
         </TabsList>
 

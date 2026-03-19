@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# PAI-X API Dependencies
+# PAIONE API Dependencies
 # ──────────────────────────────────────────────
 
 # Web Framework

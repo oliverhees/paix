@@ -335,7 +335,7 @@ class RoutineExecutorService:
                         select(User).where(User.id == user_id)
                     )
                     user_obj = user_result.scalar_one()
-                    persona_name = user_obj.persona_name or "PAI-X"
+                    persona_name = user_obj.persona_name or "PAIONE"
 
                     if user_obj.persona_prompt:
                         system_prompt = (

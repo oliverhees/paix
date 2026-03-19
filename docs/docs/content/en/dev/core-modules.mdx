@@ -1,0 +1,402 @@
+# Core Modules
+
+Technical reference for PAIONE's implemented core modules. All source code lives in `SYSTEM/src/`.
+
+## Config & Constants
+
+**Files:** `core/config.ts`, `core/constants.ts`
+
+The configuration system loads settings from `USER/.env` via dotenv and provides a typed, frozen `PaioneConfig` object.
+
+### Token Budget Constants
+
+Every memory layer has a hard token limit. These constants are defined in `constants.ts`:
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `TEMPORAL_BUDGET` | 50 | Date/time/weekday context |
+| `PERSONA_TOTAL_BUDGET` | 1,500 | 5 persona files combined |
+| `TELOS_BUDGET` | 1,000 | Identity dimensions (Phase 2) |
+| `GRAPHITI_BUDGET` | 3,000 | Knowledge graph retrieval (Phase 2) |
+| `WORKING_SPACE` | 20,000 | Agent tools + response |
+| `FIXED_OVERHEAD` | 5,550 | Sum of all fixed layers |
+
+### PaioneConfig Interface
+
+```typescript
+interface PaioneConfig {
+  anthropicApiKey: string;    // Required
+  host: string;               // Default: localhost
+  port: number;               // Default: 3000
+  locale: 'en' | 'de';       // Default: en
+  logLevel: string;           // Default: info
+  modelFast: string;          // Default: claude-haiku
+  modelBalanced: string;      // Default: claude-sonnet
+  modelPowerful: string;      // Default: claude-opus
+  openrouterApiKey?: string;
+  ollamaBaseUrl?: string;
+  vllmBaseUrl?: string;
+  userDir: string;            // Derived: {root}/USER
+  dataDir: string;            // Derived: {root}/DATA
+  systemDir: string;          // Derived: {root}/SYSTEM
+}
+```
+
+Missing `ANTHROPIC_API_KEY` throws a descriptive `ConfigError` at startup.
+
+---
+
+## Token Estimator
+
+**File:** `core/token-estimator.ts`
+
+Fast token estimation without heavy tokenizer dependencies.
+
+### Functions
+
+**`estimateTokens(text: string): number`**
+Estimates token count using a chars-per-token heuristic (~4 for English, ~3.5 for German/multilingual). Code blocks use a higher density ratio (~3 chars/token).
+
+**`truncateToTokenBudget(text: string, budget: number): string`**
+Truncates text to fit within a token budget without breaking words. Uses word boundary detection for clean cuts.
+
+---
+
+## Logger
+
+**File:** `core/logger.ts`
+
+Structured logging via [Pino](https://getpino.io/).
+
+```typescript
+import { createLogger } from './core/logger.js';
+const log = createLogger('my-module');
+log.info({ key: 'value' }, 'Something happened');
+```
+
+- **Development:** Human-readable output via pino-pretty
+- **Production:** JSON output for log aggregation
+- **Level:** Configurable via `LOG_LEVEL` env var
+
+---
+
+## Temporal Context
+
+**File:** `memory/temporal-context.ts`
+
+Generates current date/time awareness for every LLM call within a 50-token budget.
+
+```typescript
+generateTemporalContext('en')
+// → "Current time: Wednesday, March 18, 2026, 02:30 PM (CW 12)"
+
+generateTemporalContext('de')
+// → "Current time: Mittwoch, 18. März 2026, 14:30 (CW 12)"
+```
+
+Uses native `Intl.DateTimeFormat` — no external date library.
+
+---
+
+## Persona Loader
+
+**File:** `memory/persona-loader.ts`
+
+Reads 5 persona files and assembles them into a system prompt section with a 1,500-token budget.
+
+### Persona Files
+
+| File | Purpose |
+|------|---------|
+| `identity.md` | Name, tone, role |
+| `rules.md` | Behavioral guidelines |
+| `skills.md` | Capabilities |
+| `preferences.md` | Style and formatting |
+| `pinned.md` | Always-included context |
+
+### Fallback Chain
+
+1. **Group-specific:** `USER/groups/{groupId}/persona/{file}.md`
+2. **Global:** `USER/groups/persona/{file}.md`
+3. **Defaults:** `SYSTEM/defaults/persona/{locale}/{file}.md`
+
+Each file gets ~300 tokens (proportional share of 1,500 total).
+
+---
+
+## Context Assembler
+
+**File:** `memory/assembler.ts`
+
+Combines all memory layers into a single system prompt with strict budget enforcement.
+
+```typescript
+const ctx = await assembleContext('web_main', message, {
+  locale: 'en',
+  userDir: '/path/to/USER',
+  systemDir: '/path/to/SYSTEM',
+});
+
+ctx.systemPrompt   // Combined system prompt string
+ctx.tokenCounts     // { temporal: 12, persona: 340, telos: 0, graphiti: 0 }
+ctx.totalTokens     // 352
+```
+
+**Phase 1:** Temporal + Persona
+**Phase 2:** + TELOS + Graphiti
+
+---
+
+## Hook Engine
+
+**File:** `hooks/engine.ts`
+
+Event-driven lifecycle hooks for the message processing pipeline.
+
+### Events
+
+| Event | When |
+|-------|------|
+| `PRE_PROCESS` | Before message is processed |
+| `POST_RESPONSE` | After response is sent |
+| `ON_ERROR` | When an error occurs |
+| `ON_STARTUP` | Application starts |
+| `ON_SHUTDOWN` | Application stops |
+
+### Usage
+
+```typescript
+const engine = new HookEngine();
+
+engine.register({
+  name: 'my-hook',
+  event: HookEvent.PRE_PROCESS,
+  priority: 100,    // Lower = runs first
+  handler: async (ctx) => {
+    console.log(`Message from ${ctx.groupId}: ${ctx.message}`);
+  },
+});
+
+await engine.fire(HookEvent.PRE_PROCESS, { message, groupId, sessionId });
+```
+
+Hook errors are caught and logged — they never break the message pipeline.
+
+---
+
+## i18n System
+
+**File:** `i18n/locale-manager.ts`
+
+Simple key-value internationalization with parameter interpolation.
+
+### Usage
+
+```typescript
+import { t, initLocale } from './i18n/index.js';
+
+initLocale('de');
+t('chat.greeting', { name: 'Oliver' })
+// → "Hallo, Oliver! Wie kann ich dir helfen?"
+```
+
+### Features
+
+- **Parameter interpolation:** `{param}` placeholders replaced at runtime
+- **EN fallback:** Missing German keys automatically fall back to English
+- **No external library:** Simple JSON files in `i18n/locales/`
+
+### Locale Files
+
+- `SYSTEM/src/i18n/locales/en.json` — English strings
+- `SYSTEM/src/i18n/locales/de.json` — German strings
+
+Categories: `startup.*`, `shutdown.*`, `error.*`, `wizard.*`, `chat.*`, `persona.*`
+
+---
+
+## SQLite Database
+
+**File:** `db.ts`
+
+Persistent storage for messages, sessions, costs, and settings using better-sqlite3.
+
+```typescript
+const db = initDatabase('DATA/store/paione.db');
+insertMessage(db, { group_id: 'web_main', session_id: 's1', role: 'user', content: 'Hello', timestamp: new Date().toISOString(), token_count: 3 });
+const messages = getMessagesBySession(db, 's1');
+```
+
+- **WAL mode** for concurrent read performance
+- **Auto-migration** system (`SYSTEM/migrations/*.sql`)
+- Tables: messages, sessions, costs, settings
+- CRUD: `insertMessage`, `getMessagesBySession`, `getRecentMessages`, `upsertSession`, `getSessions`, `getSetting`, `setSetting`
+
+---
+
+## Express Server
+
+**File:** `ui/server.ts`
+
+HTTP server providing the REST API and serving the chat SPA.
+
+### Endpoints
+
+| Method | Path | Returns |
+|--------|------|---------|
+| GET | `/api/health` | Status, version, uptime, locale |
+| GET | `/api/config` | Public settings (locale, version) |
+| GET | `/api/sessions` | All sessions (optional `?group=` filter) |
+| GET | `/api/messages/:sessionId` | Messages for a session |
+| GET | `/api/setup/status` | Whether setup wizard completed |
+| POST | `/api/setup/complete` | Save initial configuration |
+
+Static files served from `SYSTEM/public/`.
+
+---
+
+## WebSocket Chat Server
+
+**File:** `ui/websocket.ts`
+
+Real-time chat via WebSocket with streaming support.
+
+```typescript
+const wsServer = new WebSocketChatServer();
+wsServer.attach(httpServer);
+
+wsServer.onMessage(async (conn, msg) => {
+  wsServer.sendStream(conn, 'Hello');
+  wsServer.sendStream(conn, ' World');
+  wsServer.sendResponse(conn, 'Hello World');
+});
+```
+
+- **Per-connection session tracking** (unique session ID per tab)
+- **Rate limiting**: 10 messages/minute per connection
+- **Message types**: `session_start`, `send_message`, `message_stream`, `message_response`, `error`
+- **Auto-reconnection** handling on client side
+
+---
+
+## Group Queue
+
+**File:** `group-queue.ts`
+
+Per-group message queue ensuring sequential processing within a group and concurrent processing across groups.
+
+```typescript
+const queue = new GroupQueue();
+queue.onProcess(async (msg) => { /* handle message */ });
+queue.enqueue({ groupId: 'web_main', sessionId: 's1', jid: 'web_1', content: 'Hello', timestamp: Date.now() });
+```
+
+- Messages from the same group: processed sequentially
+- Messages from different groups: processed concurrently
+- Error isolation: one failed message doesn't block the queue
+
+---
+
+## IPC System
+
+**File:** `ipc.ts`
+
+Filesystem-based inter-process communication for container isolation.
+
+- Request/response pattern via JSON files in `DATA/ipc/`
+- Polling-based (500ms interval)
+- Timeout handling (configurable, default 120s)
+- Used by Container Runner for isolated agent execution
+
+---
+
+## Container Runner
+
+**File:** `container-runner.ts`
+
+Spawns Docker containers for isolated agent execution.
+
+- Resource limits: memory cap (512MB default), CPU cap (0.5 default)
+- Network isolation (no network access for agents)
+- IPC-based communication (credentials never passed to container)
+- Auto-cleanup of containers and IPC files
+
+---
+
+## Providers
+
+**Files:** `providers/types.ts`, `providers/registry.ts`, `providers/anthropic.ts`
+
+### LLMProvider Interface
+
+```typescript
+interface LLMProvider {
+  name: string;
+  initialize(config: ProviderConfig): Promise<void>;
+  complete(request: CompletionRequest): Promise<CompletionResponse>;
+  streamComplete(request: CompletionRequest): AsyncIterable<StreamChunk>;
+  supportsTools(): boolean;
+  supportsVision(): boolean;
+  getContextWindow(): number;
+  estimateCost(inputTokens: number, outputTokens: number): number;
+}
+```
+
+### Anthropic Provider
+
+- Supports: completion, streaming, tool use, vision
+- Model tiers: fast (Haiku), balanced (Sonnet), powerful (Opus)
+- Cost estimation based on current pricing
+- API errors handled gracefully
+
+---
+
+## Channels
+
+**Files:** `channels/types.ts`, `channels/registry.ts`, `channels/web-chat.ts`
+
+### Channel Interface
+
+```typescript
+interface Channel {
+  name: string;
+  connect(): Promise<void>;
+  sendMessage(jid: string, text: string): Promise<void>;
+  isConnected(): boolean;
+  ownsJid(jid: string): boolean;
+  disconnect(): Promise<void>;
+}
+```
+
+### Web-Chat Channel
+
+- Bridges WebSocket connections to the message pipeline
+- Owns JIDs matching `web_*`
+- Supports streaming via `sendStream()`
+- NanoClaw-compatible self-registration
+
+---
+
+## Orchestrator
+
+**File:** `index.ts`
+
+The main entry point that ties all subsystems together.
+
+### Startup Sequence
+
+1. Config → 2. i18n → 3. Database → 4. Hooks → 5. Providers → 6. WebSocket + Channels → 7. Group Queue → 8. HTTP Server
+
+### Message Pipeline
+
+```
+WebSocket message → Group Queue → PRE_PROCESS hooks
+    → Context Assembly (Temporal + Persona + TELOS + Graphiti)
+    → LLM Provider call → Store in SQLite
+    → Send response via Channel
+    → POST_RESPONSE hooks (including Graphiti extraction)
+```
+
+### Graceful Shutdown
+
+SIGTERM/SIGINT → shutdown hooks → close WebSocket → disconnect channels → close HTTP → close DB

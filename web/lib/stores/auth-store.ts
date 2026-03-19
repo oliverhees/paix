@@ -2,7 +2,7 @@
  * Auth Store — Zustand store for authentication state.
  *
  * Manages user session, login/register/logout flows,
- * and token lifecycle with the PAI-X API.
+ * and token lifecycle with the PAIONE API.
  */
 
 import { create } from "zustand";

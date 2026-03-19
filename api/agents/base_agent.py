@@ -1,4 +1,4 @@
-"""Base Agent — LangGraph foundation for all PAI-X agents.
+"""Base Agent — LangGraph foundation for all PAIONE agents.
 
 Graph Structure:
 1. CONTEXT NODE: Load TELOS + Memory based on the request
@@ -233,7 +233,7 @@ class BaseAgent:
         """
         # Build system prompt
         system_parts = [
-            "Du bist PAI-X, ein persoenlicher AI-Assistent. "
+            "Du bist PAIONE, ein persoenlicher AI-Assistent. "
             "Du sprichst Deutsch, bist praezise, freundlich und proaktiv. "
             "Du kennst den Nutzer und hilfst ihm bei allen Anliegen.",
         ]

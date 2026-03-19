@@ -1,5 +1,5 @@
 /**
- * PAI-X Chat Service — WebSocket streaming + REST session management.
+ * PAIONE Chat Service — WebSocket streaming + REST session management.
  *
  * Communicates with:
  *   - WebSocket /chat/stream (streaming responses)

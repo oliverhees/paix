@@ -51,9 +51,9 @@ function buildMockDimensions(): TelosDimension[] {
     mission:
       "Ich baue Technologie, die Menschen befaehigt, produktiver und kreativer zu arbeiten. Mein Fokus liegt auf AI-gesteuerten Produkten, die komplexe Arbeit vereinfachen und Einzelpersonen sowie kleinen Teams ueberproportionale Wirkung ermoeglichen.",
     goals:
-      "1. PAI-X MVP bis Ende Maerz 2026 live\n2. Erste 3 Pilot-Nutzer bis April 2026\n3. Agent One Marktvalidierung bis Q3 2026\n4. Monatliches Content-Ziel: 4 LinkedIn-Posts, 2 Blog-Artikel\n5. Netzwerk: 10 neue relevante Kontakte pro Monat",
+      "1. PAIONE MVP bis Ende Maerz 2026 live\n2. Erste 3 Pilot-Nutzer bis April 2026\n3. Agent One Marktvalidierung bis Q3 2026\n4. Monatliches Content-Ziel: 4 LinkedIn-Posts, 2 Blog-Artikel\n5. Netzwerk: 10 neue relevante Kontakte pro Monat",
     projects:
-      "PAI-X (Personal AI Assistant) — In Entwicklung, Phase 1\nAgent One — Planung, Pre-MVP\nHR Code Labs Website — Live, Wartungsmodus\nContent Pipeline — Konzeption",
+      "PAIONE (Personal AI · ONE) — In Entwicklung, Phase 1\nAgent One — Planung, Pre-MVP\nHR Code Labs Website — Live, Wartungsmodus\nContent Pipeline — Konzeption",
     beliefs:
       "- Technologie soll den Menschen dienen, nicht umgekehrt\n- Open Source ist ein Multiplikator fuer Innovation\n- Kleine Teams mit AI-Tools koennen Grossunternehmen schlagen\n- Datenschutz ist ein Grundrecht, kein Feature\n- Konsistenz schlaegt Perfektion",
     models:
@@ -61,13 +61,13 @@ function buildMockDimensions(): TelosDimension[] {
     strategies:
       "- MVP-first: Immer das Minimale bauen, das Wert liefert\n- Content als Vertrieb: Expertise zeigen statt Kaltakquise\n- AI-Leverage: Jeden Prozess automatisieren der automatisierbar ist\n- Community Building: Wissen teilen, Netzwerk aufbauen",
     narratives:
-      '- "Dein digitaler Chief of Staff" — PAI-X Pitch\n- "AI fuer den Mittelstand" — Agent One Positioning\n- "Wir bauen die Zukunft der Arbeit" — HR Code Labs Vision\n- "Von Entwicklern fuer Entscheider" — Bridging the Gap Narrativ',
+      '- "Dein digitaler Chief of Staff" — PAIONE Pitch\n- "AI fuer den Mittelstand" — Agent One Positioning\n- "Wir bauen die Zukunft der Arbeit" — HR Code Labs Vision\n- "Von Entwicklern fuer Entscheider" — Bridging the Gap Narrativ',
     learned:
       "- Perfektionismus ist der Feind von Fortschritt\n- User-Feedback > eigene Annahmen\n- Dokumentation spart langfristig mehr Zeit als sie kostet\n- Parallele Projekte funktionieren nur mit klarer Priorisierung\n- AI-Tools sind Multiplikatoren, keine Ersatz fuer Denken",
     challenges:
       "- Zeitmanagement: Zu viele Projekte parallel\n- Fokus: Ablenkung durch neue Ideen\n- Ressourcen: Solo-Entwicklung limitiert Geschwindigkeit\n- Marktvalidierung: Noch kein zahlender Kunde\n- Infrastruktur: Self-Hosting erfordert DevOps-Kompetenz",
     ideas:
-      "- Voice-First Interface fuer PAI-X (Spaziergang-Modus)\n- Steuerberater-spezifische AI-Skills fuer Agent One\n- Open-Source Community rund um PAI-X Skills\n- Integration mit Notion/Obsidian als alternative Frontends\n- Telegram Bot als Minimal-Interface",
+      "- Voice-First Interface fuer PAIONE (Spaziergang-Modus)\n- Steuerberater-spezifische AI-Skills fuer Agent One\n- Open-Source Community rund um PAIONE Skills\n- Integration mit Notion/Obsidian als alternative Frontends\n- Telegram Bot als Minimal-Interface",
   };
 
   return TELOS_DIMENSIONS.map((id) => ({

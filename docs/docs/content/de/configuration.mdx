@@ -1,0 +1,41 @@
+# Konfiguration
+
+PAIONE wird über Umgebungsvariablen in `USER/.env` und Persona-Dateien in `USER/groups/` konfiguriert.
+
+## Umgebungsvariablen
+
+| Variable | Pflicht | Standard | Beschreibung |
+|----------|---------|----------|-------------|
+| `ANTHROPIC_API_KEY` | Ja | — | Dein Anthropic API-Key |
+| `PORT` | Nein | 3000 | Web-UI Port |
+| `LOCALE` | Nein | en | Sprache (en/de) |
+| `LOG_LEVEL` | Nein | info | Log-Level |
+| `MODEL_FAST` | Nein | claude-haiku | Schnelles Modell |
+| `MODEL_BALANCED` | Nein | claude-sonnet | Ausgewogenes Modell |
+| `MODEL_POWERFUL` | Nein | claude-opus | Leistungsstarkes Modell |
+| `GRAPHITI_URL` | Nein | — | Graphiti REST API URL (automatisch in Docker) |
+| `OPENROUTER_API_KEY` | Nein | — | OpenRouter API-Key für weitere Modelle |
+| `OLLAMA_BASE_URL` | Nein | — | Ollama-URL für lokale Modelle |
+
+Siehe `.env.example` für die vollständige Liste.
+
+## Persona
+
+Deine Persona definiert, wer PAIONE ist. Sie besteht aus 5 Dateien in `USER/groups/persona/`:
+
+| Datei | Zweck |
+|-------|-------|
+| `identity.md` | Name, Ton, Rolle |
+| `rules.md` | Verhaltensregeln |
+| `skills.md` | Was der Assistent kann |
+| `preferences.md` | Stil- und Formatierungswünsche |
+| `pinned.md` | Immer einbezogener Kontext |
+
+## Projektstruktur
+
+```
+SYSTEM/  → Infrastruktur (wird bei Updates aktualisiert, nicht ändern)
+USER/    → Deine Anpassungen (werden nie durch Updates überschrieben)
+DATA/    → Laufzeitdaten (nicht im Git, wird automatisch erstellt)
+docs/    → Dieses Dokumentationsportal
+```

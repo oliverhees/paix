@@ -24,7 +24,7 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     timezone: Mapped[str] = mapped_column(String(50), default="Europe/Berlin")
     language: Mapped[str] = mapped_column(String(10), default="de")
-    persona_name: Mapped[str] = mapped_column(String(100), default="PAI-X", server_default="PAI-X")
+    persona_name: Mapped[str] = mapped_column(String(100), default="PAIONE", server_default="PAIONE")
     persona_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     persona_personality: Mapped[str | None] = mapped_column(Text, nullable=True)
     persona_about_user: Mapped[str | None] = mapped_column(Text, nullable=True)

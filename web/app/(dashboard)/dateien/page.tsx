@@ -566,7 +566,7 @@ export default function DateienPage() {
               <p>S3_ENDPOINT_URL=https://fsn1.your-objectstorage.com</p>
               <p>S3_ACCESS_KEY=dein-access-key</p>
               <p>S3_SECRET_KEY=dein-secret-key</p>
-              <p>S3_BUCKET_NAME=paix-files</p>
+              <p>S3_BUCKET_NAME=paione-files</p>
               <p>S3_REGION=fsn1</p>
             </div>
             <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground">

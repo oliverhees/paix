@@ -1,1 +1,1 @@
-"""PAI-X Auth — JWT authentication and password hashing."""
+"""PAIONE Auth — JWT authentication and password hashing."""

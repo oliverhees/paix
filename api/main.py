@@ -1,4 +1,4 @@
-"""PAI-X API — FastAPI Application Entry Point."""
+"""PAIONE API — FastAPI Application Entry Point."""
 
 from contextlib import asynccontextmanager
 
@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="Personal AI Assistant — Backend API",
+    description="Personal AI · ONE — Backend API",
     docs_url="/api/v1/docs" if settings.debug else None,
     redoc_url="/api/v1/redoc" if settings.debug else None,
     lifespan=lifespan,

@@ -24,7 +24,7 @@ class MarketplaceItem(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     icon: Mapped[str] = mapped_column(String(10), server_default="⚡")
-    author: Mapped[str] = mapped_column(String(100), server_default="PAI-X Team")
+    author: Mapped[str] = mapped_column(String(100), server_default="PAIONE Team")
     version: Mapped[str] = mapped_column(String(20), server_default="1.0.0")
     install_count: Mapped[int] = mapped_column(Integer, server_default="0")
     featured: Mapped[bool] = mapped_column(Boolean, server_default="false")

@@ -159,7 +159,7 @@ async def get_daily_briefing(
         )
         greeting = await llm_service.complete(
             messages=[{"role": "user", "content": briefing_prompt}],
-            system_prompt="Du bist PAI-X, ein persoenlicher AI-Assistent. Erstelle praegnante Briefings.",
+            system_prompt="Du bist PAIONE, ein persoenlicher AI-Assistent. Erstelle praegnante Briefings.",
             max_tokens=500,
             api_key=user_api_key,
         )

@@ -1,1 +1,1 @@
-"""PAI-X API Routers."""
+"""PAIONE API Routers."""

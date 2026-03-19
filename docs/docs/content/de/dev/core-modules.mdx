@@ -1,0 +1,354 @@
+# Kernmodule
+
+Technische Referenz der implementierten PAIONE-Kernmodule. Der gesamte Quellcode liegt in `SYSTEM/src/`.
+
+## Config & Constants
+
+**Dateien:** `core/config.ts`, `core/constants.ts`
+
+Das Konfigurationssystem lädt Einstellungen aus `USER/.env` via dotenv und stellt ein typisiertes, eingefrorenes `PaioneConfig`-Objekt bereit.
+
+### Token-Budget-Konstanten
+
+Jede Gedächtnisschicht hat ein hartes Token-Limit. Diese Konstanten sind in `constants.ts` definiert:
+
+| Konstante | Wert | Zweck |
+|-----------|------|-------|
+| `TEMPORAL_BUDGET` | 50 | Datum/Zeit/Wochentag-Kontext |
+| `PERSONA_TOTAL_BUDGET` | 1.500 | 5 Persona-Dateien zusammen |
+| `TELOS_BUDGET` | 1.000 | Identitätsdimensionen (Phase 2) |
+| `GRAPHITI_BUDGET` | 3.000 | Wissensgraph-Abruf (Phase 2) |
+| `WORKING_SPACE` | 20.000 | Agent-Tools + Antwort |
+| `FIXED_OVERHEAD` | 5.550 | Summe aller festen Schichten |
+
+### PaioneConfig Interface
+
+```typescript
+interface PaioneConfig {
+  anthropicApiKey: string;    // Pflichtfeld
+  host: string;               // Standard: localhost
+  port: number;               // Standard: 3000
+  locale: 'en' | 'de';       // Standard: en
+  logLevel: string;           // Standard: info
+  modelFast: string;          // Standard: claude-haiku
+  modelBalanced: string;      // Standard: claude-sonnet
+  modelPowerful: string;      // Standard: claude-opus
+  openrouterApiKey?: string;
+  ollamaBaseUrl?: string;
+  vllmBaseUrl?: string;
+  userDir: string;            // Abgeleitet: {root}/USER
+  dataDir: string;            // Abgeleitet: {root}/DATA
+  systemDir: string;          // Abgeleitet: {root}/SYSTEM
+}
+```
+
+Fehlender `ANTHROPIC_API_KEY` wirft beim Start einen beschreibenden `ConfigError`.
+
+---
+
+## Token Estimator
+
+**Datei:** `core/token-estimator.ts`
+
+Schnelle Token-Schätzung ohne schwere Tokenizer-Abhängigkeiten.
+
+### Funktionen
+
+**`estimateTokens(text: string): number`**
+Schätzt die Token-Anzahl mit einer Zeichen-pro-Token-Heuristik (~4 für Englisch, ~3,5 für Deutsch/multilingual). Code-Blöcke verwenden eine höhere Dichte (~3 Zeichen/Token).
+
+**`truncateToTokenBudget(text: string, budget: number): string`**
+Kürzt Text auf ein Token-Budget, ohne Wörter zu zerbrechen. Nutzt Wortgrenzen-Erkennung für saubere Schnitte.
+
+---
+
+## Logger
+
+**Datei:** `core/logger.ts`
+
+Strukturiertes Logging via [Pino](https://getpino.io/).
+
+```typescript
+import { createLogger } from './core/logger.js';
+const log = createLogger('mein-modul');
+log.info({ key: 'value' }, 'Etwas ist passiert');
+```
+
+- **Entwicklung:** Menschenlesbare Ausgabe via pino-pretty
+- **Produktion:** JSON-Ausgabe für Log-Aggregation
+- **Level:** Konfigurierbar über `LOG_LEVEL` Umgebungsvariable
+
+---
+
+## Temporaler Kontext
+
+**Datei:** `memory/temporal-context.ts`
+
+Erzeugt aktuelle Datum/Zeit-Informationen für jeden LLM-Aufruf innerhalb eines 50-Token-Budgets.
+
+```typescript
+generateTemporalContext('en')
+// → "Current time: Wednesday, March 18, 2026, 02:30 PM (CW 12)"
+
+generateTemporalContext('de')
+// → "Current time: Mittwoch, 18. März 2026, 14:30 (CW 12)"
+```
+
+Nutzt natives `Intl.DateTimeFormat` — keine externe Datumsbibliothek.
+
+---
+
+## Persona Loader
+
+**Datei:** `memory/persona-loader.ts`
+
+Liest 5 Persona-Dateien und baut sie zu einem Systemprompt-Abschnitt mit 1.500-Token-Budget zusammen.
+
+### Persona-Dateien
+
+| Datei | Zweck |
+|-------|-------|
+| `identity.md` | Name, Ton, Rolle |
+| `rules.md` | Verhaltensregeln |
+| `skills.md` | Fähigkeiten |
+| `preferences.md` | Stil und Formatierung |
+| `pinned.md` | Immer einbezogener Kontext |
+
+### Fallback-Kette
+
+1. **Gruppenspezifisch:** `USER/groups/{groupId}/persona/{datei}.md`
+2. **Global:** `USER/groups/persona/{datei}.md`
+3. **Standardwerte:** `SYSTEM/defaults/persona/{locale}/{datei}.md`
+
+Jede Datei erhält ~300 Token (proportionaler Anteil von 1.500 gesamt).
+
+---
+
+## Context Assembler
+
+**Datei:** `memory/assembler.ts`
+
+Kombiniert alle Gedächtnisschichten zu einem einzelnen Systemprompt mit strikter Budget-Einhaltung.
+
+```typescript
+const ctx = await assembleContext('web_main', message, {
+  locale: 'en',
+  userDir: '/pfad/zu/USER',
+  systemDir: '/pfad/zu/SYSTEM',
+});
+
+ctx.systemPrompt   // Kombinierter Systemprompt-String
+ctx.tokenCounts     // { temporal: 12, persona: 340, telos: 0, graphiti: 0 }
+ctx.totalTokens     // 352
+```
+
+**Phase 1:** Temporal + Persona
+**Phase 2:** + TELOS + Graphiti
+
+---
+
+## Hook Engine
+
+**Datei:** `hooks/engine.ts`
+
+Ereignisgesteuerte Lifecycle-Hooks für die Nachrichtenverarbeitungs-Pipeline.
+
+### Ereignisse
+
+| Ereignis | Wann |
+|----------|------|
+| `PRE_PROCESS` | Bevor die Nachricht verarbeitet wird |
+| `POST_RESPONSE` | Nachdem die Antwort gesendet wurde |
+| `ON_ERROR` | Wenn ein Fehler auftritt |
+| `ON_STARTUP` | Anwendung startet |
+| `ON_SHUTDOWN` | Anwendung stoppt |
+
+### Verwendung
+
+```typescript
+const engine = new HookEngine();
+
+engine.register({
+  name: 'mein-hook',
+  event: HookEvent.PRE_PROCESS,
+  priority: 100,    // Niedriger = läuft zuerst
+  handler: async (ctx) => {
+    console.log(`Nachricht von ${ctx.groupId}: ${ctx.message}`);
+  },
+});
+
+await engine.fire(HookEvent.PRE_PROCESS, { message, groupId, sessionId });
+```
+
+Hook-Fehler werden abgefangen und geloggt — sie unterbrechen nie die Nachrichten-Pipeline.
+
+---
+
+## i18n-System
+
+**Datei:** `i18n/locale-manager.ts`
+
+Einfache Key-Value-Internationalisierung mit Parameter-Interpolation.
+
+### Verwendung
+
+```typescript
+import { t, initLocale } from './i18n/index.js';
+
+initLocale('de');
+t('chat.greeting', { name: 'Oliver' })
+// → "Hallo, Oliver! Wie kann ich dir helfen?"
+```
+
+### Features
+
+- **Parameter-Interpolation:** `{param}`-Platzhalter werden zur Laufzeit ersetzt
+- **EN-Fallback:** Fehlende deutsche Keys fallen automatisch auf Englisch zurück
+- **Keine externe Bibliothek:** Einfache JSON-Dateien in `i18n/locales/`
+
+### Locale-Dateien
+
+- `SYSTEM/src/i18n/locales/en.json` — Englische Strings
+- `SYSTEM/src/i18n/locales/de.json` — Deutsche Strings
+
+Kategorien: `startup.*`, `shutdown.*`, `error.*`, `wizard.*`, `chat.*`, `persona.*`
+
+---
+
+## SQLite-Datenbank
+
+**Datei:** `db.ts`
+
+Persistente Speicherung für Nachrichten, Sessions, Kosten und Einstellungen mit better-sqlite3.
+
+- **WAL-Modus** für parallele Lesezugriffe
+- **Auto-Migration** (`SYSTEM/migrations/*.sql`)
+- Tabellen: messages, sessions, costs, settings
+- CRUD: `insertMessage`, `getMessagesBySession`, `getRecentMessages`, `upsertSession`, `getSessions`, `getSetting`, `setSetting`
+
+---
+
+## Express Server
+
+**Datei:** `ui/server.ts`
+
+HTTP-Server mit REST API und Chat-SPA-Auslieferung.
+
+### Endpunkte
+
+| Methode | Pfad | Gibt zurück |
+|---------|------|-------------|
+| GET | `/api/health` | Status, Version, Uptime, Locale |
+| GET | `/api/config` | Öffentliche Einstellungen |
+| GET | `/api/sessions` | Alle Sessions |
+| GET | `/api/messages/:sessionId` | Nachrichten einer Session |
+| GET | `/api/setup/status` | Setup-Wizard abgeschlossen? |
+| POST | `/api/setup/complete` | Erstkonfiguration speichern |
+
+---
+
+## WebSocket Chat Server
+
+**Datei:** `ui/websocket.ts`
+
+Echtzeit-Chat via WebSocket mit Streaming-Support.
+
+- **Per-Connection Session Tracking** (eigene Session-ID pro Tab)
+- **Rate Limiting**: 10 Nachrichten/Minute pro Verbindung
+- **Nachrichtentypen**: `session_start`, `send_message`, `message_stream`, `message_response`, `error`
+
+---
+
+## Group Queue
+
+**Datei:** `group-queue.ts`
+
+Per-Group Nachrichtenwarteschlange — sequentiell innerhalb einer Gruppe, parallel zwischen Gruppen.
+
+- Gleiche Gruppe: sequentielle Verarbeitung
+- Verschiedene Gruppen: parallele Verarbeitung
+- Fehler-Isolation: eine fehlgeschlagene Nachricht blockiert nicht die Queue
+
+---
+
+## IPC-System
+
+**Datei:** `ipc.ts`
+
+Dateisystem-basierte Inter-Prozess-Kommunikation für Container-Isolation.
+
+- Request/Response via JSON-Dateien in `DATA/ipc/`
+- Polling-basiert (500ms Intervall)
+- Timeout-Handling (Standard: 120s)
+
+---
+
+## Container Runner
+
+**Datei:** `container-runner.ts`
+
+Startet Docker-Container für isolierte Agent-Ausführung.
+
+- Ressourcen-Limits: Speicher (512MB), CPU (0.5)
+- Netzwerk-Isolation (kein Netzwerkzugang für Agents)
+- IPC-basierte Kommunikation
+- Auto-Cleanup von Containern und IPC-Dateien
+
+---
+
+## Provider-System
+
+**Dateien:** `providers/types.ts`, `providers/registry.ts`, `providers/anthropic.ts`
+
+### LLMProvider Interface
+
+Alle LLM-Provider implementieren: `complete`, `streamComplete`, `supportsTools`, `supportsVision`, `getContextWindow`, `estimateCost`.
+
+### Anthropic Provider
+
+- Unterstützt: Completion, Streaming, Tool Use, Vision
+- Model-Tiers: schnell (Haiku), ausgewogen (Sonnet), leistungsstark (Opus)
+- Kostenabschätzung basierend auf aktuellen Preisen
+
+---
+
+## Channel-System
+
+**Dateien:** `channels/types.ts`, `channels/registry.ts`, `channels/web-chat.ts`
+
+### Channel Interface
+
+Alle Messaging-Kanäle implementieren: `connect`, `sendMessage`, `isConnected`, `ownsJid`, `disconnect`.
+
+### Web-Chat Channel
+
+- Verbindet WebSocket mit der Nachrichten-Pipeline
+- Besitzt JIDs mit `web_*` Präfix
+- Unterstützt Streaming via `sendStream()`
+- NanoClaw-kompatible Selbstregistrierung
+
+---
+
+## Orchestrator
+
+**Datei:** `index.ts`
+
+Der Haupteinstiegspunkt der alle Subsysteme verbindet.
+
+### Startsequenz
+
+1. Config → 2. i18n → 3. Datenbank → 4. Hooks → 5. Provider → 6. WebSocket + Channels → 7. Group Queue → 8. HTTP Server
+
+### Nachrichten-Pipeline
+
+```
+WebSocket-Nachricht → Group Queue → PRE_PROCESS Hooks
+    → Kontext-Zusammenbau (Temporal + Persona + TELOS + Graphiti)
+    → LLM Provider Call → In SQLite speichern
+    → Antwort via Channel senden
+    → POST_RESPONSE Hooks (inkl. Graphiti-Extraktion)
+```
+
+### Graceful Shutdown
+
+SIGTERM/SIGINT → Shutdown-Hooks → WebSocket schließen → Channels trennen → HTTP schließen → DB schließen

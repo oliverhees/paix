@@ -1,0 +1,43 @@
+# Configuration
+
+PAIONE is configured through environment variables in `USER/.env` and persona files in `USER/groups/`.
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ANTHROPIC_API_KEY` | Yes | — | Your Anthropic API key |
+| `PORT` | No | 3000 | Web UI port |
+| `LOCALE` | No | en | Interface language (en/de) |
+| `LOG_LEVEL` | No | info | Log verbosity |
+| `MODEL_FAST` | No | claude-haiku | Fast tier model |
+| `MODEL_BALANCED` | No | claude-sonnet | Balanced tier model |
+| `MODEL_POWERFUL` | No | claude-opus | Powerful tier model |
+| `GRAPHITI_URL` | No | — | Graphiti REST API URL (auto-set in Docker) |
+| `OPENROUTER_API_KEY` | No | — | OpenRouter API key for additional models |
+| `OLLAMA_BASE_URL` | No | — | Ollama base URL for local models |
+
+See `.env.example` for the complete list.
+
+## Persona
+
+Your persona defines who PAIONE is. It consists of 5 files in `USER/groups/persona/`:
+
+| File | Purpose |
+|------|---------|
+| `identity.md` | Name, tone, role |
+| `rules.md` | Behavioral guidelines |
+| `skills.md` | What the assistant can do |
+| `preferences.md` | Style and formatting preferences |
+| `pinned.md` | Always-included context |
+
+Each file shares a proportional budget from the total 1,500-token persona allocation.
+
+## Project Structure
+
+```
+SYSTEM/  → Infrastructure (updated with releases, don't modify)
+USER/    → Your customizations (never overwritten by updates)
+DATA/    → Runtime data (gitignored, created automatically)
+docs/    → This documentation portal
+```

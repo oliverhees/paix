@@ -133,7 +133,7 @@ class ChatEngine:
         self, user: User, user_message: str, db: "AsyncSession | None" = None
     ) -> str:
         """Build dynamic system prompt from user persona + TELOS + memory + agent state."""
-        persona_name = user.persona_name or "PAI-X"
+        persona_name = user.persona_name or "PAIONE"
         user_id = str(user.id)
 
         # ── Current date/time (always first in system prompt) ──

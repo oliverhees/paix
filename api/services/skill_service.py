@@ -470,7 +470,7 @@ class SkillService:
 
             try:
                 headers = {
-                    "User-Agent": "Mozilla/5.0 (compatible; PAI-X/1.0; +https://agentiqpulse.com)",
+                    "User-Agent": "Mozilla/5.0 (compatible; PAIONE/1.0; +https://agentiqpulse.com)",
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 }
                 async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, max_redirects=5) as client:
@@ -1062,7 +1062,7 @@ class SkillService:
             if not user or not user.s3_endpoint_url or not user.s3_access_key or not user.s3_secret_key:
                 return "Fehler: Object Storage ist nicht konfiguriert. Bitte unter Settings > Speicher die S3-Zugangsdaten eingeben."
 
-            bucket = user.s3_bucket_name or "paix"
+            bucket = user.s3_bucket_name or "paione"
             region = user.s3_region or "fsn1"
 
             # Create per-user S3 client

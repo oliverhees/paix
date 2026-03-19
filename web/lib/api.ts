@@ -1,5 +1,5 @@
 /**
- * PAI-X API Client — fetch wrapper for communicating with the FastAPI backend.
+ * PAIONE API Client — fetch wrapper for communicating with the FastAPI backend.
  *
  * Features:
  * - JWT Bearer token auth

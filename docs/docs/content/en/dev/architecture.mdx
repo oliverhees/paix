@@ -1,0 +1,95 @@
+# Architecture
+
+How PAIONE works under the hood.
+
+## Token Budget System
+
+Every AI assistant faces the same problem: the more it remembers, the less room to think. PAIONE solves this with hard budget limits:
+
+```
+Temporal Context    →      50 tokens  (always loaded)
+Persona Files       →   1,500 tokens  (always loaded)
+TELOS Snapshot      →   1,000 tokens  (keyword-scored per message)
+Graphiti Retrieval  →   3,000 tokens  (semantically retrieved)
+Working Space       →  20,000 tokens  (agent tools + response)
+Conversation        →     rest        (~174,450 tokens)
+────────────────────────────────────────
+Fixed overhead:        5,550 tokens   (constant, regardless of usage duration)
+```
+
+## Memory Layers
+
+PAIONE assembles context from four memory layers, each with its own budget:
+
+| Layer | Budget | How It Works | Docs |
+|-------|--------|-------------|------|
+| **Temporal** | 50 | Current date, time, weekday, calendar week | [Core Modules](/en/core-modules#temporal-context) |
+| **Persona** | 1,500 | 5 static files: identity, rules, skills, preferences, pinned | [Core Modules](/en/core-modules#persona-loader) |
+| **TELOS** | 1,000 | 10 identity dimensions, keyword-scored per message | [TELOS](/en/telos) |
+| **Graphiti** | 3,000 | Semantic knowledge graph, relevance-ranked facts | [Graphiti](/en/graphiti) |
+
+## Data Flow
+
+```
+Message in → WebSocket → Group Queue (sequential per group)
+  → Hook: PRE_PROCESS
+  → Context Assembly:
+      1. Temporal Context (50 tokens)
+      2. Persona Files (1,500 tokens)
+      3. TELOS Identity (keyword-scored, 1,000 tokens)
+      4. Graphiti Knowledge (semantic search, 3,000 tokens)
+  → Model Router (heuristic → tier selection)
+  → Anthropic Provider (LLM call)
+  → Store in SQLite (messages + costs)
+  → Response → WebSocket → User
+  → Hook: POST_RESPONSE
+      → Graphiti Extraction (synchronous, uses Haiku)
+```
+
+## Model Routing
+
+PAIONE automatically selects the cheapest model that can handle each task:
+
+| Tier | Model | Use Case | Cost |
+|------|-------|----------|------|
+| Fast | Haiku | Greetings, simple lookups | ~€0.001/req |
+| Balanced | Sonnet | Conversations, Q&A | ~€0.01/req |
+| Powerful | Opus | Analysis, coding, reasoning | ~€0.05/req |
+
+Classification is heuristic-based — no LLM call needed for routing.
+
+## System Components
+
+```
+┌─────────────────────────────────────────────┐
+│  Web Browser (Chat SPA)                     │
+│  WebSocket ↕                                │
+├─────────────────────────────────────────────┤
+│  PAIONE (Node.js)                           │
+│  ├── Express Server (REST API)              │
+│  ├── WebSocket Chat Server                  │
+│  ├── Group Queue                            │
+│  ├── Context Assembler                      │
+│  ├── Hook Engine                            │
+│  ├── Provider Registry (Anthropic, ...)     │
+│  ├── Channel Registry (Web, WA, TG, ...)    │
+│  ├── SQLite Database                        │
+│  └── i18n (EN + DE)                         │
+├─────────────────────────────────────────────┤
+│  Graphiti (Python FastAPI)                  │
+│  └── Knowledge extraction + search          │
+├─────────────────────────────────────────────┤
+│  FalkorDB (Graph Database)                  │
+│  └── Nodes, edges, temporal relationships   │
+└─────────────────────────────────────────────┘
+```
+
+## Deployment
+
+Three Docker containers orchestrated via `docker-compose`:
+
+1. **PAIONE** — Node.js application (port 3000)
+2. **Graphiti** — Python FastAPI server (internal only)
+3. **FalkorDB** — Redis-compatible graph database (internal only)
+
+Graphiti and FalkorDB are optional — PAIONE works without them, just without long-term memory.

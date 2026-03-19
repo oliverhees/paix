@@ -14,7 +14,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "PAI-X | Personal AI Assistant",
+  title: "PAIONE | Personal AI \u00b7 ONE",
   description:
     "Dein digitaler Chief of Staff -- proaktiv, personalisiert, datenschutzkonform.",
   icons: {
@@ -24,12 +24,12 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "PAI-X",
+    title: "PAIONE",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#09090b",
+  themeColor: "#f97316",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -71,7 +71,7 @@ export default async function RootLayout({
                 navigator.serviceWorker.getRegistrations().then(function(registrations) {
                   registrations.forEach(function(registration) {
                     registration.unregister().then(function(success) {
-                      if (success) console.log('[PAI-X] Foreign service worker unregistered');
+                      if (success) console.log('[PAIONE] Foreign service worker unregistered');
                     });
                   });
                 });

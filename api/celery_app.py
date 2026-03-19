@@ -1,4 +1,4 @@
-"""Celery Application — background task processing for PAI-X."""
+"""Celery Application — background task processing for PAIONE."""
 
 from celery import Celery
 from celery.schedules import crontab
@@ -6,7 +6,7 @@ from celery.schedules import crontab
 from config import settings
 
 celery = Celery(
-    "paix",
+    "paione",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
 )

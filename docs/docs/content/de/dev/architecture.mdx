@@ -1,0 +1,95 @@
+# Architektur
+
+Wie PAIONE unter der Haube funktioniert.
+
+## Token-Budget-System
+
+Jeder KI-Assistent steht vor dem gleichen Problem: Je mehr er sich merkt, desto weniger Platz zum Denken. PAIONE löst das mit harten Budget-Limits:
+
+```
+Temporaler Kontext  →      50 Token  (immer geladen)
+Persona-Dateien     →   1.500 Token  (immer geladen)
+TELOS-Snapshot      →   1.000 Token  (keyword-bewertet pro Nachricht)
+Graphiti-Abruf      →   3.000 Token  (semantisch abgerufen)
+Arbeitsbereich      →  20.000 Token  (Agent-Tools + Antwort)
+Konversation        →     Rest       (~174.450 Token)
+────────────────────────────────────────
+Fester Overhead:       5.550 Token   (konstant, unabhängig von Nutzungsdauer)
+```
+
+## Gedächtnisschichten
+
+PAIONE baut Kontext aus vier Schichten zusammen, jede mit eigenem Budget:
+
+| Schicht | Budget | Funktionsweise | Doku |
+|---------|--------|---------------|------|
+| **Temporal** | 50 | Datum, Uhrzeit, Wochentag, KW | [Kernmodule](/de/core-modules#temporaler-kontext) |
+| **Persona** | 1.500 | 5 Dateien: identity, rules, skills, preferences, pinned | [Kernmodule](/de/core-modules#persona-loader) |
+| **TELOS** | 1.000 | 10 Identitätsdimensionen, keyword-bewertet | [TELOS](/de/telos) |
+| **Graphiti** | 3.000 | Semantischer Wissensgraph, relevanz-gerankte Fakten | [Graphiti](/de/graphiti) |
+
+## Datenfluss
+
+```
+Nachricht rein → WebSocket → Group Queue (sequentiell pro Gruppe)
+  → Hook: PRE_PROCESS
+  → Kontext-Zusammenbau:
+      1. Temporaler Kontext (50 Token)
+      2. Persona-Dateien (1.500 Token)
+      3. TELOS-Identität (keyword-bewertet, 1.000 Token)
+      4. Graphiti-Wissen (semantische Suche, 3.000 Token)
+  → Model-Router (Heuristik → Tier-Auswahl)
+  → Anthropic Provider (LLM-Aufruf)
+  → In SQLite speichern (Nachrichten + Kosten)
+  → Antwort → WebSocket → User
+  → Hook: POST_RESPONSE
+      → Graphiti-Extraktion (synchron, nutzt Haiku)
+```
+
+## Model-Routing
+
+PAIONE wählt automatisch das günstigste Modell:
+
+| Tier | Modell | Einsatz | Kosten |
+|------|--------|---------|--------|
+| Schnell | Haiku | Begrüßungen, einfache Abfragen | ~€0,001/Req |
+| Ausgewogen | Sonnet | Gespräche, Q&A | ~€0,01/Req |
+| Leistungsstark | Opus | Analyse, Coding, Reasoning | ~€0,05/Req |
+
+Die Klassifizierung ist heuristik-basiert — kein LLM-Aufruf für das Routing nötig.
+
+## Systemkomponenten
+
+```
+┌─────────────────────────────────────────────┐
+│  Webbrowser (Chat SPA)                      │
+│  WebSocket ↕                                │
+├─────────────────────────────────────────────┤
+│  PAIONE (Node.js)                           │
+│  ├── Express Server (REST API)              │
+│  ├── WebSocket Chat Server                  │
+│  ├── Group Queue                            │
+│  ├── Context Assembler                      │
+│  ├── Hook Engine                            │
+│  ├── Provider Registry (Anthropic, ...)     │
+│  ├── Channel Registry (Web, WA, TG, ...)    │
+│  ├── SQLite-Datenbank                       │
+│  └── i18n (EN + DE)                         │
+├─────────────────────────────────────────────┤
+│  Graphiti (Python FastAPI)                  │
+│  └── Wissensextraktion + Suche              │
+├─────────────────────────────────────────────┤
+│  FalkorDB (Graph-Datenbank)                 │
+│  └── Knoten, Kanten, temporale Beziehungen  │
+└─────────────────────────────────────────────┘
+```
+
+## Deployment
+
+Drei Docker-Container orchestriert via `docker-compose`:
+
+1. **PAIONE** — Node.js-Anwendung (Port 3000)
+2. **Graphiti** — Python FastAPI Server (nur intern)
+3. **FalkorDB** — Redis-kompatible Graph-Datenbank (nur intern)
+
+Graphiti und FalkorDB sind optional — PAIONE funktioniert auch ohne, nur ohne Langzeitgedächtnis.

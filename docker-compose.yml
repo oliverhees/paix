@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: paix
-      POSTGRES_USER: paix
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-paix}
+      POSTGRES_DB: paione
+      POSTGRES_USER: paione
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-paione}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U paix"]
+      test: ["CMD-SHELL", "pg_isready -U paione"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -42,7 +42,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://paix:${POSTGRES_PASSWORD:-paix}@postgres:5432/paix
+      DATABASE_URL: postgresql+asyncpg://paione:${POSTGRES_PASSWORD:-paione}@postgres:5432/paione
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -71,7 +71,7 @@ services:
     build: ./api
     command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q default,proactive,memory
     environment:
-      DATABASE_URL: postgresql+asyncpg://paix:${POSTGRES_PASSWORD:-paix}@postgres:5432/paix
+      DATABASE_URL: postgresql+asyncpg://paione:${POSTGRES_PASSWORD:-paione}@postgres:5432/paione
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -92,7 +92,7 @@ services:
     build: ./api
     command: celery -A celery_app beat --loglevel=info
     environment:
-      DATABASE_URL: postgresql+asyncpg://paix:${POSTGRES_PASSWORD:-paix}@postgres:5432/paix
+      DATABASE_URL: postgresql+asyncpg://paione:${POSTGRES_PASSWORD:-paione}@postgres:5432/paione
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1

@@ -1,0 +1,87 @@
+# Graphiti-Wissensgraph
+
+Graphiti gibt PAIONE ein semantisches Langzeitgedächtnis. Es speichert Fakten, Entitäten und Beziehungen aus jeder Konversation und ruft das relevanteste Wissen für jede neue Nachricht ab.
+
+## So funktioniert es
+
+Graphiti läuft als separater Python-Container mit REST API. PAIONE kommuniziert per HTTP.
+
+```
+Nachricht rein → Graphiti-Suche → Top-N relevante Fakten (3.000 Token)
+                                       ↓
+                                 Im Systemprompt eingefügt
+                                       ↓
+                                 LLM-Antwort
+                                       ↓
+                                 Graphiti-Extraktion → Speichert neue Fakten
+```
+
+### Zwei Operationen pro Nachricht
+
+1. **Abruf (vor dem LLM-Call):** Durchsucht den Wissensgraph nach relevanten Fakten. Ergebnisse werden auf 3.000 Token gekürzt und in den Systemprompt eingefügt.
+
+2. **Extraktion (nach der LLM-Antwort):** Der vollständige Gesprächszug (Nachricht + Antwort) wird an Graphiti zur Entitäts- und Faktenextraktion gesendet. Nutzt Haiku (schnelles Modell) um Kosten zu minimieren.
+
+## Architektur
+
+| Komponente | Technologie | Rolle |
+|------------|------------|-------|
+| **Graphiti Server** | Python + FastAPI | REST API für Suche und Ingestion |
+| **FalkorDB** | Redis-kompatibler Graph-DB | Speichert Knoten, Kanten, Beziehungen |
+| **Haiku** | Claude Haiku | Entitätsextraktion (günstig, schnell) |
+
+Alle drei laufen als Docker-Container via `docker-compose`.
+
+## Token-Budget
+
+| Einstellung | Wert |
+|-------------|------|
+| Gesamtbudget | 3.000 Token |
+| Pro-Ergebnis-Limit | ~300 Token |
+| Typische Ergebnisse | 5-10 pro Abfrage |
+| Suchmethode | Semantische Ähnlichkeit |
+
+## Konfiguration
+
+In `USER/.env` hinzufügen:
+
+```env
+# Graphiti ist in Docker automatisch konfiguriert. Für manuelle Setups:
+GRAPHITI_URL=http://graphiti:8000
+```
+
+In Docker Compose ist Graphiti vorkonfiguriert — kein manuelles Setup nötig.
+
+## Graceful Degradation
+
+Graphiti ist **optional**. Wenn der Container nicht läuft:
+
+- Suche gibt keine Ergebnisse zurück (0 Token verwendet)
+- Extraktion wird still übersprungen
+- PAIONE funktioniert normal — nur ohne Langzeitgedächtnis
+- Keine Fehlermeldungen für den User
+
+Das heißt du kannst PAIONE ohne Docker im Entwicklungsmodus betreiben und hast trotzdem einen voll funktionsfähigen Assistenten.
+
+## Module
+
+| Datei | Zweck |
+|-------|-------|
+| `memory/graphiti-client.ts` | HTTP-Client (search, addEpisode, health) |
+| `memory/graphiti-retriever.ts` | Budget-kontrollierter Abruf |
+| `memory/graphiti-extractor.ts` | POST_RESPONSE Hook für Wissensextraktion |
+| `container/graphiti/server.py` | FastAPI Server der Graphiti wrapped |
+| `container/graphiti/Dockerfile` | Python-Container-Build |
+
+## Übersicht Gedächtnisschichten
+
+Mit aktivem Graphiti sind alle vier Schichten operativ:
+
+```
+Temporaler Kontext  →     50 Token  (immer geladen)
+Persona-Dateien     →  1.500 Token  (immer geladen)
+TELOS-Identität     →  1.000 Token  (keyword-bewertet)
+Graphiti-Gedächtnis →  3.000 Token  (semantisch abgerufen)
+──────────────────────────────────────
+Fester Overhead:      5.550 Token   (konstant)
+```

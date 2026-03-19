@@ -24,7 +24,7 @@ services:
       retries: 3
       start_period: 30s
     networks:
-      - paix-network
+      - paione-network
 
   # ──────────────────────────────────────────────
   # Backend: FastAPI
@@ -38,7 +38,7 @@ services:
     environment:
       - ENVIRONMENT=production
       - DEBUG=false
-      - DATABASE_URL=postgresql+asyncpg://paix:${POSTGRES_PASSWORD}@postgres:5432/paix
+      - DATABASE_URL=postgresql+asyncpg://paione:${POSTGRES_PASSWORD}@postgres:5432/paione
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
@@ -65,7 +65,7 @@ services:
       retries: 3
       start_period: 15s
     networks:
-      - paix-network
+      - paione-network
 
   # ──────────────────────────────────────────────
   # PostgreSQL 16
@@ -77,16 +77,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=paix
-      - POSTGRES_USER=paix
+      - POSTGRES_DB=paione
+      - POSTGRES_USER=paione
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U paix -d paix"]
+      test: ["CMD-SHELL", "pg_isready -U paione -d paione"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - paix-network
+      - paione-network
 
   # ──────────────────────────────────────────────
   # Redis 7.x
@@ -104,7 +104,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - paix-network
+      - paione-network
 
   # ──────────────────────────────────────────────
   # FalkorDB (Graph-Datenbank fuer Graphiti)
@@ -121,7 +121,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - paix-network
+      - paione-network
 
   # ──────────────────────────────────────────────
   # Graphiti API Service
@@ -147,7 +147,7 @@ services:
       retries: 3
       start_period: 20s
     networks:
-      - paix-network
+      - paione-network
 
   # ──────────────────────────────────────────────
   # n8n (Workflow Automation)
@@ -173,7 +173,7 @@ services:
       retries: 3
       start_period: 30s
     networks:
-      - paix-network
+      - paione-network
 
   # ──────────────────────────────────────────────
   # Nginx (Reverse Proxy)
@@ -194,7 +194,7 @@ services:
       timeout: 10s
       retries: 3
     networks:
-      - paix-network
+      - paione-network
 
   # ──────────────────────────────────────────────
   # Celery Worker (Background Tasks)
@@ -206,7 +206,7 @@ services:
     command: celery -A celery_app worker --loglevel=info --concurrency=4 -Q default,proactive,memory
     environment:
       - ENVIRONMENT=production
-      - DATABASE_URL=postgresql+asyncpg://paix:${POSTGRES_PASSWORD}@postgres:5432/paix
+      - DATABASE_URL=postgresql+asyncpg://paione:${POSTGRES_PASSWORD}@postgres:5432/paione
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
@@ -223,7 +223,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - paix-network
+      - paione-network
 
   # ──────────────────────────────────────────────
   # Celery Beat (Periodic Task Scheduler)
@@ -241,7 +241,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - paix-network
+      - paione-network
 
 # ──────────────────────────────────────────────
 # Volumes
@@ -260,5 +260,5 @@ volumes:
 # Networks
 # ──────────────────────────────────────────────
 networks:
-  paix-network:
+  paione-network:
     driver: bridge

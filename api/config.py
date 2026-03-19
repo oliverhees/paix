@@ -1,4 +1,4 @@
-"""PAI-X API Configuration — loaded from environment variables."""
+"""PAIONE API Configuration — loaded from environment variables."""
 
 from pydantic_settings import BaseSettings
 from pydantic import Field
@@ -8,14 +8,14 @@ class Settings(BaseSettings):
     """Application settings loaded from .env file or environment variables."""
 
     # ─── App ───
-    app_name: str = "PAI-X API"
+    app_name: str = "PAIONE API"
     app_version: str = "0.1.0"
     environment: str = Field(default="development", alias="ENVIRONMENT")
     debug: bool = Field(default=True, alias="DEBUG")
 
     # ─── Database ───
     database_url: str = Field(
-        default="postgresql+asyncpg://paix:paix@localhost:5432/paix",
+        default="postgresql+asyncpg://paione:paione@localhost:5432/paione",
         alias="DATABASE_URL",
     )
 
@@ -61,12 +61,12 @@ class Settings(BaseSettings):
     s3_endpoint_url: str = Field(default="", alias="S3_ENDPOINT_URL")
     s3_access_key: str = Field(default="", alias="S3_ACCESS_KEY")
     s3_secret_key: str = Field(default="", alias="S3_SECRET_KEY")
-    s3_bucket_name: str = Field(default="paix-files", alias="S3_BUCKET_NAME")
+    s3_bucket_name: str = Field(default="paione-files", alias="S3_BUCKET_NAME")
     s3_region: str = Field(default="fsn1", alias="S3_REGION")
 
     # ─── Docker Sandbox ───
     docker_sandbox_enabled: bool = False
-    docker_sandbox_image: str = "paix-sandbox:latest"
+    docker_sandbox_image: str = "paione-sandbox:latest"
     docker_sandbox_timeout: int = 30
     docker_sandbox_memory: str = "256m"
     docker_sandbox_cpus: str = "0.5"

@@ -1,0 +1,40 @@
+# Getting Started
+
+Get PAIONE running in under 5 minutes.
+
+## Prerequisites
+
+| | Minimum | Recommended |
+|---|---------|-------------|
+| CPU | 2 cores | 4 cores |
+| RAM | 4 GB | 8 GB |
+| Disk | 20 GB | 50 GB |
+| Docker | 24.0+ | Latest |
+| OS | Ubuntu 22.04, macOS 13+, Win 10+ (WSL2) | Ubuntu 24.04 |
+
+## Installation
+
+```bash
+git clone https://github.com/oliverhees/paione.git
+cd paione
+cp .env.example USER/.env
+```
+
+Edit `USER/.env` and add your Anthropic API key:
+
+```env
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+## Start PAIONE
+
+```bash
+docker-compose up -d
+```
+
+Open [http://localhost:3000](http://localhost:3000) — the setup wizard will guide you through the initial configuration.
+
+## What's Next?
+
+- Configure your [Persona](/configuration#persona) — teach PAIONE who you are
+- Explore the [Architecture](/architecture) — understand how it works
