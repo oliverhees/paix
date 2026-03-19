@@ -14,6 +14,11 @@ export const THEMES = [
     colors: ["oklch(0.33 0 0)"]
   },
   {
+    name: "PAIONE",
+    value: "paione",
+    colors: ["oklch(0.7 0.18 50)"]
+  },
+  {
     name: "Underground",
     value: "underground",
     colors: ["oklch(0.5315 0.0694 156.19)"]
