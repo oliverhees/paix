@@ -21,9 +21,6 @@ import {
   MoreVertical,
   MoveRight,
   RefreshCw,
-  AlertCircle,
-  Info,
-  X,
   Eye,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -51,16 +48,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 import {
   storageService,
   type StorageItem,
-  type StorageStatus,
   type StorageStats,
 } from "@/lib/storage-service";
 
-// ─── Helpers ──
+// --- Helpers ---
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -103,7 +98,7 @@ function isPreviewable(name: string): boolean {
   return PREVIEWABLE_EXTENSIONS.includes(ext);
 }
 
-// ─── Breadcrumb ──
+// --- Breadcrumb ---
 
 function PathBreadcrumb({
   path,
@@ -146,7 +141,7 @@ function PathBreadcrumb({
   );
 }
 
-// ─── Drop Zone ──
+// --- Drop Zone ---
 
 function DropZone({
   currentPath,
@@ -211,7 +206,7 @@ function DropZone({
               className="text-primary hover:underline"
               disabled={uploading}
             >
-              Dateien auswählen
+              Dateien auswaehlen
             </button>
           </p>
         </div>
@@ -220,7 +215,7 @@ function DropZone({
   );
 }
 
-// ─── File/Folder Row ──
+// --- File/Folder Row ---
 
 function ItemRow({
   item,
@@ -332,7 +327,7 @@ function ItemRow({
               className="text-destructive focus:text-destructive"
             >
               <Trash2 className="size-3.5 mr-2" />
-              Löschen
+              Loeschen
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -341,10 +336,9 @@ function ItemRow({
   );
 }
 
-// ─── Main Page ──
+// --- Main Page ---
 
 export default function DateienPage() {
-  const [status, setStatus] = useState<StorageStatus | null>(null);
   const [stats, setStats] = useState<StorageStats | null>(null);
   const [currentPath, setCurrentPath] = useState("");
   const [folders, setFolders] = useState<StorageItem[]>([]);
@@ -359,7 +353,6 @@ export default function DateienPage() {
   const [previewItem, setPreviewItem] = useState<StorageItem | null>(null);
   const [previewContent, setPreviewContent] = useState<string>("");
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [statusLoading, setStatusLoading] = useState(true);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -367,18 +360,6 @@ export default function DateienPage() {
       setStats(s);
     } catch {
       // Stats are non-critical, ignore errors
-    }
-  }, []);
-
-  const fetchStatus = useCallback(async () => {
-    setStatusLoading(true);
-    try {
-      const s = await storageService.getStatus();
-      setStatus(s);
-    } catch {
-      setStatus({ connected: false, error: "Verbindung fehlgeschlagen", endpoint: null, bucket: null });
-    } finally {
-      setStatusLoading(false);
     }
   }, []);
 
@@ -390,7 +371,7 @@ export default function DateienPage() {
       setFiles(data.files);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Fehler beim Laden";
-      if (!msg.includes("503")) toast.error(msg);
+      toast.error(msg);
       setFolders([]);
       setFiles([]);
     } finally {
@@ -398,18 +379,10 @@ export default function DateienPage() {
     }
   }, [currentPath]);
 
-  // Load status + stats in parallel on mount
+  // Load files + stats on mount
   useEffect(() => {
-    Promise.all([fetchStatus(), fetchStats()]);
-  }, [fetchStatus, fetchStats]);
-
-  useEffect(() => {
-    if (status?.connected) {
-      fetchFiles();
-    } else {
-      setLoading(false);
-    }
-  }, [status?.connected, fetchFiles]);
+    Promise.all([fetchFiles(), fetchStats()]);
+  }, [fetchFiles, fetchStats]);
 
   function navigateTo(path: string) {
     setCurrentPath(path);
@@ -462,19 +435,29 @@ export default function DateienPage() {
     const isFolder = item.type === "folder";
     try {
       await storageService.deleteObject(item.path, isFolder);
-      toast.success(`${isFolder ? "Ordner" : "Datei"} gelöscht`);
+      toast.success(`${isFolder ? "Ordner" : "Datei"} geloescht`);
       fetchFiles();
       fetchStats();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Fehler beim Löschen";
+      const msg = err instanceof Error ? err.message : "Fehler beim Loeschen";
       toast.error(msg);
     }
   }
 
   async function handleDownload(item: StorageItem) {
     try {
-      const { url } = await storageService.getDownloadUrl(item.path);
-      window.open(url, "_blank");
+      // Download directly via the download endpoint
+      const response = await fetch(
+        `/api/v1/storage/download?path=${encodeURIComponent(item.path)}`
+      );
+      if (!response.ok) throw new Error("Download fehlgeschlagen");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = item.name;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Download fehlgeschlagen";
       toast.error(msg);
@@ -519,79 +502,7 @@ export default function DateienPage() {
     }
   }
 
-  // ── Initial Loading (status check in progress) ──
-  if (statusLoading && !status) {
-    return (
-      <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dateien</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Hetzner Object Storage — Dateien, Projekte und Dokumente
-          </p>
-        </div>
-        <div className="flex items-center gap-3 py-12 justify-center">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Verbinde mit Object Storage...</span>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Not Configured ──
-  if (status && !status.connected) {
-    return (
-      <div className="flex flex-col gap-6 p-4 sm:p-6 w-full">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dateien</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Hetzner Object Storage für Dateien, Projekte und Dokumente
-          </p>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertCircle className="size-5 text-amber-500" />
-              Object Storage nicht verbunden
-            </CardTitle>
-            <CardDescription>
-              {status.error || "Konfiguriere die S3-Zugangsdaten um den Dateispeicher zu aktivieren."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Setze folgende Umgebungsvariablen in der API <code className="text-xs bg-muted px-1 py-0.5 rounded">.env</code> Datei:
-            </p>
-            <div className="rounded-lg bg-muted p-3 font-mono text-xs space-y-1">
-              <p>S3_ENDPOINT_URL=https://fsn1.your-objectstorage.com</p>
-              <p>S3_ACCESS_KEY=dein-access-key</p>
-              <p>S3_SECRET_KEY=dein-secret-key</p>
-              <p>S3_BUCKET_NAME=paione-files</p>
-              <p>S3_REGION=fsn1</p>
-            </div>
-            <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground">
-              <Info className="size-3.5 shrink-0 mt-0.5" />
-              <span>
-                Hetzner Object Storage ist S3-kompatibel. Erstelle einen Bucket
-                und Access Keys in der{" "}
-                <a
-                  href="https://console.hetzner.cloud"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Hetzner Cloud Console
-                </a>
-                .
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // ── Main View ──
+  // --- Main View ---
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6 w-full">
       {/* Header */}
@@ -599,7 +510,7 @@ export default function DateienPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dateien</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Hetzner Object Storage — Dateien, Projekte und Dokumente
+            Lokaler Speicher — Dateien, Projekte und Dokumente
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -624,26 +535,24 @@ export default function DateienPage() {
       </div>
 
       {/* Storage info */}
-      {status && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <HardDrive className="size-3.5" />
-          <span>{status.bucket}</span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-            Verbunden
-          </span>
-          {stats && (stats.files > 0 || stats.folders > 0) && (
-            <>
-              <span className="text-muted-foreground/50">|</span>
-              <span>
-                {stats.folders > 0 && `${stats.folders} Ordner`}
-                {stats.folders > 0 && stats.files > 0 && " \u00b7 "}
-                {stats.files > 0 && `${stats.files} Dateien`}
-                {stats.total_size > 0 && ` \u00b7 ${formatFileSize(stats.total_size)} belegt`}
-              </span>
-            </>
-          )}
-        </div>
-      )}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <HardDrive className="size-3.5" />
+        <span>Lokaler Speicher</span>
+        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          Lokal
+        </span>
+        {stats && (stats.files > 0 || stats.folders > 0) && (
+          <>
+            <span className="text-muted-foreground/50">|</span>
+            <span>
+              {stats.folders > 0 && `${stats.folders} Ordner`}
+              {stats.folders > 0 && stats.files > 0 && " \u00b7 "}
+              {stats.files > 0 && `${stats.files} Dateien`}
+              {stats.total_size > 0 && ` \u00b7 ${formatFileSize(stats.total_size)} belegt`}
+            </span>
+          </>
+        )}
+      </div>
 
       {/* Breadcrumb */}
       <PathBreadcrumb path={currentPath} onNavigate={navigateTo} />
@@ -837,7 +746,7 @@ export default function DateienPage() {
                 setPreviewContent("");
               }}
             >
-              Schließen
+              Schliessen
             </Button>
             {previewItem && (
               <Button

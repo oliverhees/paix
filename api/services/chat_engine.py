@@ -419,17 +419,11 @@ class ChatEngine:
     # ──────────────────────────────────────────────
 
     async def _get_storage_tools(self, db: "AsyncSession", user_id: uuid.UUID) -> list[dict]:
-        """Return storage tools if user has S3 configured in their profile."""
-        from sqlalchemy import select
-        from models.user import User
-        result = await db.execute(select(User).where(User.id == user_id))
-        user = result.scalar_one_or_none()
-        if not user or not user.s3_endpoint_url or not user.s3_access_key or not user.s3_secret_key:
-            return []
+        """Return storage tools — always available with local storage."""
         return [
             {
                 "name": "storage_list",
-                "description": "List files and folders in the user's object storage. Returns folder and file names with sizes.",
+                "description": "List files and folders in the user's local storage. Returns folder and file names with sizes.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -443,7 +437,7 @@ class ChatEngine:
             },
             {
                 "name": "storage_read",
-                "description": "Read a text file from object storage. Returns the file content as text (max 50KB).",
+                "description": "Read a text file from local storage. Returns the file content as text (max 50KB).",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -457,7 +451,7 @@ class ChatEngine:
             },
             {
                 "name": "storage_write",
-                "description": "Write/save a text file to object storage.",
+                "description": "Write/save a text file to local storage.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -479,7 +473,7 @@ class ChatEngine:
             },
             {
                 "name": "storage_delete",
-                "description": "Delete a file or folder from object storage.",
+                "description": "Delete a file or folder from local storage.",
                 "input_schema": {
                     "type": "object",
                     "properties": {

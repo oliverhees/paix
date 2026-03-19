@@ -689,7 +689,7 @@ class SkillService:
             },
             {
                 "name": "storage_write",
-                "description": "Save a text file to the user's object storage.",
+                "description": "Save a text file to the user's local storage.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -1048,56 +1048,27 @@ class SkillService:
         tool_name: str,
         tool_input: dict,
     ) -> str:
-        """Execute a storage tool call using per-user S3 credentials from DB."""
-        import json
-        import boto3
-        from sqlalchemy import select
-        from models.user import User
+        """Execute a storage tool call using local file storage."""
+        from services.local_storage_service import local_storage
+
+        uid = str(user_id)
 
         try:
-            # Load user's S3 config from database
-            result = await db.execute(select(User).where(User.id == user_id))
-            user = result.scalar_one_or_none()
-
-            if not user or not user.s3_endpoint_url or not user.s3_access_key or not user.s3_secret_key:
-                return "Fehler: Object Storage ist nicht konfiguriert. Bitte unter Settings > Speicher die S3-Zugangsdaten eingeben."
-
-            bucket = user.s3_bucket_name or "paione"
-            region = user.s3_region or "fsn1"
-
-            # Create per-user S3 client
-            s3 = boto3.client(
-                "s3",
-                endpoint_url=user.s3_endpoint_url,
-                aws_access_key_id=user.s3_access_key,
-                aws_secret_access_key=user.s3_secret_key,
-                region_name=region,
-            )
-
-            user_prefix = f"users/{user_id}/"
-
             if tool_name == "storage_list":
                 path = tool_input.get("path", "")
-                full_path = user_prefix + path.lstrip("/")
-                resp = s3.list_objects_v2(Bucket=bucket, Prefix=full_path, Delimiter="/")
+                result = await local_storage.list_objects(uid, path)
                 items = []
-                for p in resp.get("CommonPrefixes", []):
-                    name = p["Prefix"].replace(full_path, "").strip("/")
-                    if name:
-                        items.append(f"📁 {name}/")
-                for obj in resp.get("Contents", []):
-                    name = obj["Key"].replace(full_path, "")
-                    if name and not name.endswith("/"):
-                        items.append(f"📄 {name} ({obj['Size']} bytes)")
+                for f in result["folders"]:
+                    items.append(f"📁 {f['name']}/")
+                for f in result["files"]:
+                    items.append(f"📄 {f['name']} ({f['size']} bytes)")
                 if not items:
                     return f"Ordner '{path or '/'}' ist leer."
                 return f"Inhalt von '{path or '/'}':\n" + "\n".join(items)
 
             elif tool_name == "storage_read":
                 path = tool_input.get("path", "")
-                key = user_prefix + path.lstrip("/")
-                resp = s3.get_object(Bucket=bucket, Key=key)
-                data = resp["Body"].read()
+                data, _ = await local_storage.download_file(uid, path)
                 if len(data) > 50 * 1024:
                     return f"Datei zu groß zum Lesen ({len(data)} bytes)."
                 try:
@@ -1109,18 +1080,15 @@ class SkillService:
                 path = tool_input.get("path", "")
                 content = tool_input.get("content", "")
                 ct = tool_input.get("content_type", "text/plain")
-                # Ensure UTF-8 charset for text content types
                 if ct.startswith("text/") and "charset" not in ct:
                     ct += "; charset=utf-8"
-                key = user_prefix + path.lstrip("/")
                 data = content.encode("utf-8")
-                s3.put_object(Bucket=bucket, Key=key, Body=data, ContentType=ct)
+                await local_storage.upload_file(uid, path, data, ct)
                 return f"Datei gespeichert: {path} ({len(data)} bytes)"
 
             elif tool_name == "storage_delete":
                 path = tool_input.get("path", "")
-                key = user_prefix + path.lstrip("/")
-                s3.delete_object(Bucket=bucket, Key=key)
+                await local_storage.delete_object(uid, path)
                 return f"Gelöscht: {path}"
 
             else:

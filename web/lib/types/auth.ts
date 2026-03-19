@@ -18,11 +18,6 @@ export interface UserMeResponse {
   persona_about_user?: string | null;
   persona_communication?: string | null;
   brave_search_api_key?: string | null;
-  s3_endpoint_url?: string | null;
-  s3_access_key?: string | null;
-  s3_secret_key?: string | null;
-  s3_bucket_name?: string | null;
-  s3_region?: string | null;
   telegram_bot_token?: string | null;
   telegram_chat_id?: string | null;
 }

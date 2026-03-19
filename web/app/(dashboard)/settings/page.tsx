@@ -1817,71 +1817,27 @@ function KnowledgeGraphCard() {
 /* ── Storage Section ─────────────────────────────── */
 
 function StorageSection() {
-  const [config, setConfig] = useState({
-    endpoint_url: "",
-    access_key: "",
-    secret_key: "",
-    bucket_name: "paione-files",
-    region: "fsn1",
-  });
-  const [configured, setConfigured] = useState(false);
+  const [storagePath, setStoragePath] = useState<string>("");
+  const [stats, setStats] = useState<{ files: number; folders: number; total_size: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    connected: boolean;
-    error?: string | null;
-  } | null>(null);
-  const [showSecret, setShowSecret] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
         const { storageService } = await import("@/lib/storage-service");
-        const cfg = await storageService.getConfig();
-        setConfig({
-          endpoint_url: cfg.endpoint_url,
-          access_key: cfg.access_key,
-          secret_key: cfg.secret_key,
-          bucket_name: cfg.bucket_name,
-          region: cfg.region,
-        });
-        setConfigured(cfg.configured);
+        const [cfg, s] = await Promise.all([
+          storageService.getConfig(),
+          storageService.getStats(),
+        ]);
+        setStoragePath(cfg.path || "DATA/storage");
+        setStats(s);
       } catch {
-        // not configured yet
+        // ignore
       } finally {
         setLoading(false);
       }
     })();
   }, []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const { storageService } = await import("@/lib/storage-service");
-      const result = await storageService.updateConfig(config);
-      setConfigured(result.configured);
-      toast.success("Speicher-Konfiguration gespeichert");
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Fehler beim Speichern");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleTest = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const { storageService } = await import("@/lib/storage-service");
-      const result = await storageService.testConnection();
-      setTestResult(result);
-    } catch (e: unknown) {
-      setTestResult({ connected: false, error: e instanceof Error ? e.message : "Verbindung fehlgeschlagen" });
-    } finally {
-      setTesting(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -1893,111 +1849,54 @@ function StorageSection() {
     );
   }
 
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          Objektspeicher (S3)
-          {configured ? (
-            <Badge variant="default" className="bg-green-600">Verbunden</Badge>
-          ) : (
-            <Badge variant="secondary">Nicht konfiguriert</Badge>
-          )}
+          Lokaler Speicher
+          <Badge variant="default" className="bg-green-600">Aktiv</Badge>
         </CardTitle>
         <CardDescription>
-          S3-kompatibler Objektspeicher für Dateien (z.B. Hetzner Object Storage, AWS S3, MinIO).
+          Dateien werden lokal auf der Festplatte gespeichert. Keine externe Konfiguration noetig.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="s3-endpoint">Endpoint URL</Label>
-            <Input
-              id="s3-endpoint"
-              placeholder="https://fsn1.your-objectstorage.com"
-              value={config.endpoint_url}
-              onChange={(e) => setConfig((c) => ({ ...c, endpoint_url: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="s3-access-key">Access Key</Label>
-            <Input
-              id="s3-access-key"
-              placeholder="Dein Access Key"
-              value={config.access_key}
-              onChange={(e) => setConfig((c) => ({ ...c, access_key: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="s3-secret-key">Secret Key</Label>
-            <div className="relative">
-              <Input
-                id="s3-secret-key"
-                type={showSecret ? "text" : "password"}
-                placeholder="Dein Secret Key"
-                value={config.secret_key}
-                onChange={(e) => setConfig((c) => ({ ...c, secret_key: e.target.value }))}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowSecret(!showSecret)}
-              >
-                {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="s3-bucket">Bucket Name</Label>
-            <Input
-              id="s3-bucket"
-              placeholder="paione-files"
-              value={config.bucket_name}
-              onChange={(e) => setConfig((c) => ({ ...c, bucket_name: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="s3-region">Region</Label>
-            <Input
-              id="s3-region"
-              placeholder="fsn1"
-              value={config.region}
-              onChange={(e) => setConfig((c) => ({ ...c, region: e.target.value }))}
-            />
+        <div className="space-y-2">
+          <Label>Speicherpfad</Label>
+          <div className="rounded-lg bg-muted px-3 py-2 font-mono text-sm">
+            {storagePath}
           </div>
         </div>
 
-        {testResult && (
-          <div className={`rounded-md px-3 py-2 text-sm ${
-            testResult.connected
-              ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"
-              : "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200"
-          }`}>
-            {testResult.connected ? (
-              <span className="flex items-center gap-2">
-                <Check className="h-4 w-4" /> Verbindung erfolgreich
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <X className="h-4 w-4" /> {testResult.error || "Verbindung fehlgeschlagen"}
-              </span>
-            )}
+        {stats && (
+          <div className="grid grid-cols-3 gap-4">
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-2xl font-bold">{stats.files}</p>
+              <p className="text-xs text-muted-foreground">Dateien</p>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-2xl font-bold">{stats.folders}</p>
+              <p className="text-xs text-muted-foreground">Ordner</p>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-2xl font-bold">{formatSize(stats.total_size)}</p>
+              <p className="text-xs text-muted-foreground">Belegt</p>
+            </div>
           </div>
         )}
 
-        <Separator />
-
-        <div className="flex gap-2">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Speichern
-          </Button>
-          <Button variant="outline" onClick={handleTest} disabled={testing}>
-            {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
-            Verbindung testen
-          </Button>
+        <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground">
+          <Info className="size-3.5 shrink-0 mt-0.5" />
+          <span>
+            Der Speicherpfad kann ueber die Umgebungsvariable <code className="text-xs bg-muted px-1 py-0.5 rounded">STORAGE_PATH</code> konfiguriert werden.
+          </span>
         </div>
       </CardContent>
     </Card>
