@@ -678,7 +678,7 @@ function NotificationsSection() {
         <CardHeader>
           <CardTitle>Kanaele</CardTitle>
           <CardDescription>
-            Ueber welche Kanaele PAI-X dich erreichen darf.
+            Ueber welche Kanaele PAIONE dich erreichen darf.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -773,7 +773,7 @@ function AutonomySection() {
       <CardHeader>
         <CardTitle>Autonomie-Level</CardTitle>
         <CardDescription>
-          Bestimme, wie selbststaendig PAI-X pro Skill handeln darf. Level 1 =
+          Bestimme, wie selbststaendig PAIONE pro Skill handeln darf. Level 1 =
           immer fragen, Level 5 = volle Autonomie.
         </CardDescription>
       </CardHeader>
@@ -845,7 +845,7 @@ function AppearanceSection() {
       <CardHeader>
         <CardTitle>Darstellung</CardTitle>
         <CardDescription>
-          Passe das Erscheinungsbild von PAI-X an.
+          Passe das Erscheinungsbild von PAIONE an.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -906,9 +906,9 @@ function AboutSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Über PAI-X</CardTitle>
+        <CardTitle>Über PAIONE</CardTitle>
         <CardDescription>
-          Dein Personal AI Assistant
+          Personal AI · ONE
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -936,7 +936,7 @@ function AboutSection() {
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            PAI-X ist ein Produkt von HR Code Labs. Bei Fragen oder Feedback
+            PAIONE ist ein Produkt von HR Code Labs. Bei Fragen oder Feedback
             wende dich an{" "}
             <a
               href="mailto:oliver@hrcodelabs.de"
@@ -1404,19 +1404,7 @@ function APIKeysSection() {
                 <p className="text-muted-foreground">Token generieren mit Claude Code CLI:</p>
                 <code className="block bg-background rounded px-2 py-1 font-mono text-xs">claude setup-token</code>
                 <p className="text-muted-foreground">Token beginnt mit <code className="font-mono">sk-ant-oat01-</code></p>
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={openClaudeOAuth}
-                  disabled={connectingClaude}
-                  className="w-full gap-2 mt-2"
-                >
-                  {connectingClaude ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Verbinde...</>
-                  ) : (
-                    <><Zap className="h-3.5 w-3.5" /> Mit Anthropic verbinden</>
-                  )}
-                </Button>
+                {/* OAuth button removed — single-user mode, paste token manually */}
               </div>
             )}
 
@@ -1540,50 +1528,87 @@ function APIKeysSection() {
 
 /* ── Persona Section ──────────────────────────────────── */
 
+interface PersonaFiles {
+  identity: string;
+  rules: string;
+  skills: string;
+  preferences: string;
+  pinned: string;
+}
+
+const PERSONA_FIELD_META: { key: keyof PersonaFiles; label: string; placeholder: string; description: string; rows: number }[] = [
+  {
+    key: "identity",
+    label: "Identitaet",
+    placeholder: "Wer bist du? Name, Rolle, Persoenlichkeit des Assistenten.",
+    description: "Definiert wer der Assistent ist — Name, Rolle und Grundcharakter.",
+    rows: 3,
+  },
+  {
+    key: "rules",
+    label: "Regeln",
+    placeholder: "- Duze den Nutzer\n- Antworte auf Deutsch\n- Sei praezise und strukturiert",
+    description: "Feste Regeln fuer die KI: Anrede, Sprache, Verbote.",
+    rows: 4,
+  },
+  {
+    key: "skills",
+    label: "Faehigkeiten",
+    placeholder: "- Recherche und Analyse\n- Content-Erstellung\n- Technische Unterstuetzung",
+    description: "Was kann der Assistent besonders gut?",
+    rows: 3,
+  },
+  {
+    key: "preferences",
+    label: "Praeferenzen",
+    placeholder: "- Bevorzuge Markdown-Formatierung\n- Halte Antworten praegnant",
+    description: "Ausgabeformat, Laenge, Stil — wie sollen Antworten aussehen?",
+    rows: 3,
+  },
+  {
+    key: "pinned",
+    label: "Angeheftete Infos",
+    placeholder: "Wichtige Informationen die immer im Kontext sein sollen...",
+    description: "Diese Infos sind immer im Kontext — z.B. aktuelle Projekte, wichtige Fakten.",
+    rows: 4,
+  },
+];
+
 function PersonaSection() {
-  const { profile, profileLoading, fetchProfile } = useSettingsStore();
-  const [personaName, setPersonaName] = useState("");
-  const [personaPersonality, setPersonaPersonality] = useState("");
-  const [personaAboutUser, setPersonaAboutUser] = useState("");
-  const [personaCommunication, setPersonaCommunication] = useState("");
-  const [personaPrompt, setPersonaPrompt] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [files, setFiles] = useState<PersonaFiles>({
+    identity: "",
+    rules: "",
+    skills: "",
+    preferences: "",
+    pinned: "",
+  });
+  const [loading, setLoading] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
-
-  useEffect(() => {
-    if (profile) {
-      setPersonaName(profile.persona_name ?? "");
-      setPersonaPersonality(profile.persona_personality ?? "");
-      setPersonaAboutUser(profile.persona_about_user ?? "");
-      setPersonaCommunication(profile.persona_communication ?? "");
-      setPersonaPrompt(profile.persona_prompt ?? "");
-      // Auto-expand advanced section if legacy prompt is set but structured fields are empty
-      if (
-        profile.persona_prompt &&
-        !profile.persona_personality &&
-        !profile.persona_about_user &&
-        !profile.persona_communication
-      ) {
-        setAdvancedOpen(true);
+    (async () => {
+      try {
+        const res = await api.get<{ files: PersonaFiles }>("/settings/persona-files");
+        setFiles(res.files);
+      } catch {
+        toast.error("Persona-Dateien konnten nicht geladen werden");
+      } finally {
+        setLoading(false);
       }
-    }
-  }, [profile]);
+    })();
+  }, []);
+
+  const handleChange = useCallback((key: keyof PersonaFiles, value: string) => {
+    setFiles((prev) => ({ ...prev, [key]: value }));
+    setHasChanges(true);
+  }, []);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      await api.put("/auth/me", {
-        persona_name: personaName || null,
-        persona_personality: personaPersonality || null,
-        persona_about_user: personaAboutUser || null,
-        persona_communication: personaCommunication || null,
-        persona_prompt: personaPrompt || null,
-      });
+      const res = await api.put<{ files: PersonaFiles }>("/settings/persona-files", { files });
+      setFiles(res.files);
       toast.success("Persona gespeichert");
       setHasChanges(false);
     } catch {
@@ -1591,9 +1616,9 @@ function PersonaSection() {
     } finally {
       setSaving(false);
     }
-  }, [personaName, personaPersonality, personaAboutUser, personaCommunication, personaPrompt]);
+  }, [files]);
 
-  if (profileLoading) {
+  if (loading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
@@ -1608,110 +1633,25 @@ function PersonaSection() {
       <CardHeader>
         <CardTitle>KI-Assistent</CardTitle>
         <CardDescription>
-          Passe die Persoenlichkeit deines KI-Assistenten an.
+          Passe die Persoenlichkeit deines KI-Assistenten an. Jedes Feld wird als Markdown-Datei gespeichert.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="space-y-2">
-          <Label htmlFor="persona-name">Name des Assistenten</Label>
-          <Input
-            id="persona-name"
-            placeholder="PAI-X"
-            value={personaName}
-            onChange={(e) => {
-              setPersonaName(e.target.value);
-              setHasChanges(true);
-            }}
-          />
-        </div>
-
-        <Separator />
-
-        <div className="space-y-2">
-          <Label htmlFor="persona-personality">Persoenlichkeit</Label>
-          <Textarea
-            id="persona-personality"
-            placeholder="Freundlich und direkt. Nutze gelegentlich Humor. Sei proaktiv mit Vorschlaegen."
-            value={personaPersonality}
-            onChange={(e) => {
-              setPersonaPersonality(e.target.value);
-              setHasChanges(true);
-            }}
-            rows={3}
-          />
-          <p className="text-xs text-muted-foreground">
-            Wie soll dein Assistent kommunizieren? Ton, Stil, Humor, Formalitaet.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="persona-about-user">Ueber dich</Label>
-          <Textarea
-            id="persona-about-user"
-            placeholder="Ich bin Softwareentwickler, arbeite an AI-Projekten. Ich spreche Deutsch und Englisch."
-            value={personaAboutUser}
-            onChange={(e) => {
-              setPersonaAboutUser(e.target.value);
-              setHasChanges(true);
-            }}
-            rows={3}
-          />
-          <p className="text-xs text-muted-foreground">
-            Was soll dein Assistent ueber dich wissen? Beruf, Interessen, Kontext.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="persona-communication">Kommunikationsstil</Label>
-          <Textarea
-            id="persona-communication"
-            placeholder="Duze mich. Antworte auf Deutsch. Halte Antworten kurz und praegnant."
-            value={personaCommunication}
-            onChange={(e) => {
-              setPersonaCommunication(e.target.value);
-              setHasChanges(true);
-            }}
-            rows={3}
-          />
-          <p className="text-xs text-muted-foreground">
-            Formelle Anrede, Ausfuehrlichkeit, Sprache, Emoji-Nutzung.
-          </p>
-        </div>
-
-        <Separator />
-
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen(!advancedOpen)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {advancedOpen ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-            Erweitert: Freitext System-Prompt
-          </button>
-          {advancedOpen && (
-            <div className="space-y-2 pt-2">
-              <Textarea
-                id="persona-prompt"
-                placeholder="Vollstaendiger System-Prompt (ueberschreibt die strukturierten Felder, wenn keine ausgefuellt sind)"
-                value={personaPrompt}
-                onChange={(e) => {
-                  setPersonaPrompt(e.target.value);
-                  setHasChanges(true);
-                }}
-                rows={5}
-              />
-              <p className="text-xs text-muted-foreground">
-                Dieser Freitext wird nur verwendet wenn die strukturierten Felder
-                oben leer sind. Er dient als Fallback fuer fortgeschrittene Nutzer.
-              </p>
-            </div>
-          )}
-        </div>
+        {PERSONA_FIELD_META.map((field) => (
+          <div key={field.key} className="space-y-2">
+            <Label htmlFor={`persona-${field.key}`}>{field.label}</Label>
+            <Textarea
+              id={`persona-${field.key}`}
+              placeholder={field.placeholder}
+              value={files[field.key]}
+              onChange={(e) => handleChange(field.key, e.target.value)}
+              rows={field.rows}
+            />
+            <p className="text-xs text-muted-foreground">
+              {field.description}
+            </p>
+          </div>
+        ))}
 
         <Button
           onClick={handleSave}
@@ -1829,71 +1769,27 @@ function KnowledgeGraphCard() {
 /* ── Storage Section ─────────────────────────────── */
 
 function StorageSection() {
-  const [config, setConfig] = useState({
-    endpoint_url: "",
-    access_key: "",
-    secret_key: "",
-    bucket_name: "paix-files",
-    region: "fsn1",
-  });
-  const [configured, setConfigured] = useState(false);
+  const [storagePath, setStoragePath] = useState<string>("");
+  const [stats, setStats] = useState<{ files: number; folders: number; total_size: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    connected: boolean;
-    error?: string | null;
-  } | null>(null);
-  const [showSecret, setShowSecret] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
         const { storageService } = await import("@/lib/storage-service");
-        const cfg = await storageService.getConfig();
-        setConfig({
-          endpoint_url: cfg.endpoint_url,
-          access_key: cfg.access_key,
-          secret_key: cfg.secret_key,
-          bucket_name: cfg.bucket_name,
-          region: cfg.region,
-        });
-        setConfigured(cfg.configured);
+        const [cfg, s] = await Promise.all([
+          storageService.getConfig(),
+          storageService.getStats(),
+        ]);
+        setStoragePath(cfg.path || "DATA/storage");
+        setStats(s);
       } catch {
-        // not configured yet
+        // ignore
       } finally {
         setLoading(false);
       }
     })();
   }, []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const { storageService } = await import("@/lib/storage-service");
-      const result = await storageService.updateConfig(config);
-      setConfigured(result.configured);
-      toast.success("Speicher-Konfiguration gespeichert");
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Fehler beim Speichern");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleTest = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const { storageService } = await import("@/lib/storage-service");
-      const result = await storageService.testConnection();
-      setTestResult(result);
-    } catch (e: unknown) {
-      setTestResult({ connected: false, error: e instanceof Error ? e.message : "Verbindung fehlgeschlagen" });
-    } finally {
-      setTesting(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -1905,111 +1801,54 @@ function StorageSection() {
     );
   }
 
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          Objektspeicher (S3)
-          {configured ? (
-            <Badge variant="default" className="bg-green-600">Verbunden</Badge>
-          ) : (
-            <Badge variant="secondary">Nicht konfiguriert</Badge>
-          )}
+          Lokaler Speicher
+          <Badge variant="default" className="bg-green-600">Aktiv</Badge>
         </CardTitle>
         <CardDescription>
-          S3-kompatibler Objektspeicher für Dateien (z.B. Hetzner Object Storage, AWS S3, MinIO).
+          Dateien werden lokal auf der Festplatte gespeichert. Keine externe Konfiguration noetig.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="s3-endpoint">Endpoint URL</Label>
-            <Input
-              id="s3-endpoint"
-              placeholder="https://fsn1.your-objectstorage.com"
-              value={config.endpoint_url}
-              onChange={(e) => setConfig((c) => ({ ...c, endpoint_url: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="s3-access-key">Access Key</Label>
-            <Input
-              id="s3-access-key"
-              placeholder="Dein Access Key"
-              value={config.access_key}
-              onChange={(e) => setConfig((c) => ({ ...c, access_key: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="s3-secret-key">Secret Key</Label>
-            <div className="relative">
-              <Input
-                id="s3-secret-key"
-                type={showSecret ? "text" : "password"}
-                placeholder="Dein Secret Key"
-                value={config.secret_key}
-                onChange={(e) => setConfig((c) => ({ ...c, secret_key: e.target.value }))}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowSecret(!showSecret)}
-              >
-                {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="s3-bucket">Bucket Name</Label>
-            <Input
-              id="s3-bucket"
-              placeholder="paix-files"
-              value={config.bucket_name}
-              onChange={(e) => setConfig((c) => ({ ...c, bucket_name: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="s3-region">Region</Label>
-            <Input
-              id="s3-region"
-              placeholder="fsn1"
-              value={config.region}
-              onChange={(e) => setConfig((c) => ({ ...c, region: e.target.value }))}
-            />
+        <div className="space-y-2">
+          <Label>Speicherpfad</Label>
+          <div className="rounded-lg bg-muted px-3 py-2 font-mono text-sm">
+            {storagePath}
           </div>
         </div>
 
-        {testResult && (
-          <div className={`rounded-md px-3 py-2 text-sm ${
-            testResult.connected
-              ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"
-              : "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200"
-          }`}>
-            {testResult.connected ? (
-              <span className="flex items-center gap-2">
-                <Check className="h-4 w-4" /> Verbindung erfolgreich
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <X className="h-4 w-4" /> {testResult.error || "Verbindung fehlgeschlagen"}
-              </span>
-            )}
+        {stats && (
+          <div className="grid grid-cols-3 gap-4">
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-2xl font-bold">{stats.files}</p>
+              <p className="text-xs text-muted-foreground">Dateien</p>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-2xl font-bold">{stats.folders}</p>
+              <p className="text-xs text-muted-foreground">Ordner</p>
+            </div>
+            <div className="rounded-lg border p-3 text-center">
+              <p className="text-2xl font-bold">{formatSize(stats.total_size)}</p>
+              <p className="text-xs text-muted-foreground">Belegt</p>
+            </div>
           </div>
         )}
 
-        <Separator />
-
-        <div className="flex gap-2">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Speichern
-          </Button>
-          <Button variant="outline" onClick={handleTest} disabled={testing}>
-            {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
-            Verbindung testen
-          </Button>
+        <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-2.5 text-xs text-muted-foreground">
+          <Info className="size-3.5 shrink-0 mt-0.5" />
+          <span>
+            Der Speicherpfad kann ueber die Umgebungsvariable <code className="text-xs bg-muted px-1 py-0.5 rounded">STORAGE_PATH</code> konfiguriert werden.
+          </span>
         </div>
       </CardContent>
     </Card>
@@ -2291,7 +2130,7 @@ export default function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="about" className="gap-2">
             <Info className="h-4 w-4" />
-            Über PAI-X
+            Über PAIONE
           </TabsTrigger>
         </TabsList>
 

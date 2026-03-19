@@ -1,0 +1,189 @@
+# Werkzeuge (Tools)
+
+Werkzeuge erweitern PAIONE um externe Faehigkeiten. Verbinde MCP Server oder REST APIs, und deren Tools werden im Chat und in Skills verfuegbar.
+
+## Zwei Typen von Werkzeugen
+
+| Typ | Protokoll | Einsatz |
+|-----|----------|---------|
+| **MCP Server** | Model Context Protocol | Tiefe Tool-Integration (GitHub, Linear, Dateisysteme) |
+| **REST API** | HTTP REST | Jede API mit Endpoints (Wetter, CMS, eigene Services) |
+
+## MCP Server
+
+Das [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) ist ein offener Standard zur Verbindung von KI-Modellen mit externen Tools. PAIONE agiert als MCP Client.
+
+### MCP Server verbinden
+
+1. Gehe zu **Werkzeuge** in der Sidebar
+2. Klicke auf **MCP Server hinzufuegen**
+3. Fuelle aus:
+
+| Feld | Beschreibung |
+|------|-------------|
+| Name | Anzeigename (z.B. "github") |
+| Beschreibung | Was dieser Server bereitstellt |
+| Transport Type | `stdio`, `sse` oder `streamable_http` |
+| Config | Verbindungsdetails (siehe unten) |
+
+### Transport Types
+
+**stdio** -- Lokaler Prozess, kommuniziert ueber stdin/stdout:
+```json
+{
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-github"],
+  "env": {
+    "GITHUB_TOKEN": "ghp_..."
+  }
+}
+```
+
+**sse** -- Remote-Server, Server-Sent Events:
+```json
+{
+  "url": "http://localhost:3001/sse"
+}
+```
+
+**streamable_http** -- Remote-Server, HTTP Streaming:
+```json
+{
+  "url": "https://mcp.example.com/stream"
+}
+```
+
+### Tool Discovery
+
+Nach dem Verbinden entdeckt PAIONE automatisch verfuegbare Tools vom MCP Server. Jedes Tool erhaelt eine namespaced Referenz:
+
+```
+mcp__{server_name}__{tool_name}
+```
+
+Beispiel: `mcp__github__create_issue`
+
+Du kannst die Erkennung auch manuell ueber den **Discover**-Button ausloesen.
+
+### Verbindung testen
+
+Klicke **Test** bei einem MCP Server, um die Konnektivitaet zu pruefen ohne etwas zu speichern.
+
+## REST API Werkzeuge
+
+Registriere jede REST API als Tool-Quelle. Jeder Endpoint wird zu einem Tool im Chat.
+
+### REST API hinzufuegen
+
+1. Gehe zu **Werkzeuge**
+2. Klicke auf **API hinzufuegen**
+3. Fuelle aus:
+
+| Feld | Beschreibung |
+|------|-------------|
+| Name | Anzeigename (z.B. "weather-api") |
+| Base URL | `https://api.example.com` |
+| Auth | Authentifizierungsmethode (siehe unten) |
+| Headers | Standard-Headers fuer alle Requests |
+| Endpoints | Liste der Endpoint-Definitionen |
+
+### Authentifizierung
+
+**Bearer Token:**
+```json
+{
+  "type": "bearer",
+  "token": "dein-api-token"
+}
+```
+
+**Custom Header:**
+```json
+{
+  "type": "header",
+  "key": "X-API-Key",
+  "value": "dein-api-key"
+}
+```
+
+### Endpoint-Definitionen
+
+Jeder Endpoint wird zu einem Tool:
+
+```json
+{
+  "name": "get_weather",
+  "description": "Aktuelles Wetter fuer eine Stadt abrufen",
+  "method": "GET",
+  "path": "/weather",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "city": {
+        "type": "string",
+        "description": "Stadtname"
+      }
+    },
+    "required": ["city"]
+  }
+}
+```
+
+### Testen
+
+Klicke **Test** bei einem API-Werkzeug, um einen HEAD-Request an die Base URL zu senden und die Erreichbarkeit zu pruefen.
+
+## Ghost CMS Integration
+
+PAIONE hat eingebaute Unterstuetzung fuer Ghost CMS ueber Skills und API-Werkzeuge:
+
+1. Fuege Ghost als REST API Werkzeug mit deinem Ghost Admin API Key hinzu
+2. Nutze den vorinstallierten "Ghost Publish"-Skill zum Veroeffentlichen
+3. Verkette Skills: Content Pipeline --> Ghost Publish
+
+### Setup
+
+```json
+{
+  "name": "ghost",
+  "base_url": "https://dein-blog.ghost.io/ghost/api/admin",
+  "auth": {
+    "type": "header",
+    "key": "Authorization",
+    "value": "Ghost dein-admin-api-token"
+  },
+  "endpoints": [
+    {
+      "name": "create_post",
+      "description": "Neuen Ghost-Blogartikel erstellen",
+      "method": "POST",
+      "path": "/posts",
+      "parameters": {}
+    }
+  ]
+}
+```
+
+## Werkzeuge im Chat nutzen
+
+Nach dem Verbinden sind Tools automatisch im Chat verfuegbar. PAIONE waehlt das richtige Tool anhand deiner Nachricht:
+
+- "Erstelle ein GitHub Issue fuer den Login-Bug" --> nutzt `mcp__github__create_issue`
+- "Wie ist das Wetter in Berlin?" --> nutzt `api__weather__get_weather`
+
+## Werkzeuge in Skills nutzen
+
+Beschraenke den Tool-Zugriff eines Skills ueber `allowed_tools`:
+
+```json
+["mcp__github__create_issue", "mcp__github__list_repos"]
+```
+
+Das verhindert, dass ein Skill versehentlich unpassende Tools aufruft.
+
+## Werkzeuge verwalten
+
+- **Aktivieren/Deaktivieren** -- Werkzeug an/aus schalten ohne zu loeschen
+- **Bearbeiten** -- Verbindungsdetails, Endpoints oder Tools aendern
+- **Loeschen** -- Werkzeug dauerhaft entfernen
+- **Discover** -- MCP Server erneut nach neuen Tools scannen

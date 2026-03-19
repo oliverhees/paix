@@ -1,0 +1,25 @@
+/* PAIONE Docs — Brand Colors (matching paione.ai) */
+
+:root {
+  --paione-orange: #f97316;
+  --paione-orange-dark: #ea580c;
+  --paione-orange-light: #fb923c;
+}
+
+/* Override Nextra primary color to orange */
+[data-theme="dark"] {
+  --nextra-primary-hue: 25deg;
+  --nextra-primary-saturation: 95%;
+  --nextra-primary-lightness: 53%;
+}
+
+[data-theme="light"] {
+  --nextra-primary-hue: 25deg;
+  --nextra-primary-saturation: 95%;
+  --nextra-primary-lightness: 45%;
+}
+
+/* Force dark mode as default (matching paione.ai) */
+html {
+  color-scheme: dark;
+}

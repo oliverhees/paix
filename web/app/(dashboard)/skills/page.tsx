@@ -1464,7 +1464,7 @@ function SkillDetailView({
         Notification.permission === "granted" &&
         document.hidden
       ) {
-        new Notification("PAI-X — Skill abgeschlossen", {
+        new Notification("PAIONE — Skill abgeschlossen", {
           body: `${skill.name} wurde erfolgreich ausgefuehrt`,
           icon: "/icon.png",
         });
@@ -1890,7 +1890,7 @@ function SkillDetailView({
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Link2 className="size-4 text-blue-400" />
+                <Link2 className="size-4 text-orange-400" />
                 Verkettung
               </CardTitle>
               <CardDescription className="text-xs">
@@ -2230,7 +2230,7 @@ function SkillDetailView({
                 <div className="space-y-0.5">
                   <p className="text-sm font-medium">Autonomie-Level</p>
                   <p className="text-xs text-muted-foreground">
-                    Wie selbststaendig darf PAI-X diesen Skill nutzen?
+                    Wie selbststaendig darf PAIONE diesen Skill nutzen?
                   </p>
                 </div>
                 <Select
@@ -3364,7 +3364,7 @@ export default function SkillsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Skills</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Verwalte deine PAI-X Skills im Anthropic Open Standard Format
+            Verwalte deine PAIONE Skills im Anthropic Open Standard Format
           </p>
         </div>
         <div className="flex gap-2 shrink-0">

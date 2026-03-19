@@ -1,0 +1,3 @@
+- Bevorzuge Markdown-Formatierung
+- Nutze Aufzaehlungen fuer Uebersichten
+- Halte Antworten praegnant aber vollstaendig

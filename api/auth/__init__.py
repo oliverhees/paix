@@ -1,1 +1,1 @@
-"""PAI-X Auth — JWT authentication and password hashing."""
+"""PAIONE Auth — single-user mode, no login required."""

@@ -1,0 +1,164 @@
+# Architecture
+
+How PAIONE works under the hood.
+
+## System Overview
+
+PAIONE is a full-stack application with a Next.js frontend, FastAPI backend, PostgreSQL database, Redis cache, and optional Graphiti knowledge graph.
+
+```
++-------------------------------------------------+
+|  Browser (Next.js SPA)                          |
+|  HTTP / WebSocket                               |
++-------------------------------------------------+
+           |
++-------------------------------------------------+
+|  FastAPI Backend (Python)                       |
+|  +-- Chat Engine (streaming, tool use)          |
+|  +-- Skill Service (execution, parsing)         |
+|  +-- Routine Service (CRUD, scheduling)         |
+|  +-- Persona Loader (5 markdown files)          |
+|  +-- TELOS Scorer (keyword relevance)           |
+|  +-- Token Budget (hard limits per layer)       |
+|  +-- MCP Client (tool discovery, execution)     |
+|  +-- LLM Service (Anthropic, multi-provider)    |
+|  +-- Local Storage Service                      |
+|  +-- Graphiti Service (knowledge graph)         |
++-------------------------------------------------+
+           |
++-------------------------------------------------+
+|  PostgreSQL     |  Redis        |  FalkorDB     |
+|  (all data)     |  (cache,      |  (knowledge   |
+|                 |   Celery)     |   graph)      |
++-------------------------------------------------+
+           |
++-------------------------------------------------+
+|  Celery Worker + Beat                           |
+|  (routine execution, scheduled tasks)           |
++-------------------------------------------------+
+```
+
+## Token Budget System
+
+Every AI call includes a carefully budgeted system prompt:
+
+```
+Temporal Context    -->      50 tokens  (always loaded)
+Persona Files       -->   1,500 tokens  (always loaded)
+TELOS Snapshot      -->   1,000 tokens  (keyword-scored per message)
+Graphiti Retrieval  -->   3,000 tokens  (semantically retrieved)
+Working Space       -->  20,000 tokens  (agent tools + response)
+Conversation        -->     rest        (~174,450 tokens)
+-----------------------------------------------------
+Fixed overhead:        5,550 tokens   (constant, regardless of usage duration)
+```
+
+## Persona Loader
+
+Reads 5 persona markdown files and assembles them into a system prompt section:
+
+| File | Purpose | Budget |
+|------|---------|--------|
+| `personality.md` | Character traits | ~300 tokens |
+| `about_user.md` | User knowledge | ~300 tokens |
+| `communication_style.md` | Tone and format | ~300 tokens |
+| `rules.md` | Behavioral constraints | ~300 tokens |
+| `pinned.md` | Always-included context | ~300 tokens |
+
+Files are loaded from `USER/persona/` with defaults from `SYSTEM/defaults/persona/`.
+
+## TELOS Keyword Scoring
+
+TELOS uses keyword-based relevance scoring to select which identity dimensions to include:
+
+1. Extract significant keywords from the user's message
+2. Score each of the 10 TELOS dimensions based on keyword overlap
+3. Load the highest-scoring dimensions until the 1,000-token budget is filled
+4. Fallback: `mission.md` + `goals.md` if nothing matches
+
+This means when you talk about projects, PAIONE loads your project context. When you discuss challenges, it loads your challenges -- always within budget.
+
+## Local Storage
+
+PAIONE uses local filesystem storage instead of S3:
+
+```
+DATA/storage/
+  briefings/      --> Skill-generated briefings
+  articles/       --> Processed articles
+  exports/        --> Data exports
+  uploads/        --> User file uploads
+```
+
+The `local_storage_service.py` provides read/write/list/delete operations. Skills access storage via `storage_read` and `storage_write` tools.
+
+## Single-User Architecture
+
+PAIONE is designed as a single-user, self-hosted application:
+
+- One user account per instance (created during setup)
+- JWT-based authentication
+- All data belongs to one user
+- No multi-tenancy, no shared resources
+- Full privacy: everything runs on your hardware
+
+## Data Flow (Chat)
+
+```
+User message --> FastAPI endpoint
+  --> Chat Engine
+    --> Context Assembly:
+        1. Temporal Context (date, time, weekday)
+        2. Persona Files (5 markdown files)
+        3. TELOS Identity (keyword-scored dimensions)
+        4. Graphiti Knowledge (semantic search)
+    --> Tool Resolution (MCP servers + API werkzeuge)
+    --> LLM Service (Anthropic API call, streaming)
+    --> Store in PostgreSQL (messages, tokens, cost)
+    --> Response stream --> User
+    --> Post-processing:
+        --> Graphiti Extraction (knowledge graph update)
+```
+
+## Data Flow (Routine Execution)
+
+```
+Celery Beat (cron trigger)
+  --> Routine Executor Service
+    --> Condition Check (optional, uses Haiku)
+    --> Resolve prompt (variable substitution)
+    --> LLM Service call (with skill tools if configured)
+    --> Store run result + artifacts
+    --> Create notification
+    --> Trigger chains (if configured)
+    --> Dispatch webhooks (if configured)
+    --> Send push notification (if subscribed)
+```
+
+## Model Routing
+
+PAIONE supports multiple LLM providers through a unified service:
+
+| Provider | Models | Configuration |
+|----------|--------|---------------|
+| Anthropic | Haiku, Sonnet, Opus | Primary, API key required |
+| OpenAI | GPT-4, GPT-3.5 | Optional, via API key |
+| Google | Gemini | Optional, via API key |
+
+API keys are managed in **Settings > Integrations** or via `USER/.env`.
+
+## Deployment
+
+Seven Docker containers orchestrated via `docker-compose`:
+
+| Container | Technology | Purpose | Port |
+|-----------|-----------|---------|------|
+| paione-web | Next.js | Frontend | 3000 |
+| paione-api | FastAPI | Backend API | 8000 |
+| postgres | PostgreSQL 16 | Primary database | internal |
+| redis | Redis 7 | Cache + Celery broker | internal |
+| falkordb | FalkorDB | Knowledge graph | internal |
+| celery-worker | Python | Background task execution | -- |
+| celery-beat | Python | Scheduled task triggering | -- |
+
+Graphiti/FalkorDB are optional -- PAIONE works without them, just without long-term semantic memory.

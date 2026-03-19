@@ -1,15 +1,12 @@
 """Chat Endpoints — delegates to ChatEngine via Channel Adapters."""
 
 import logging
-import uuid
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query
-from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.dependencies import get_current_user
-from auth.jwt import decode_token
 from models.database import get_db, async_session
 from models.schemas import (
     ChatFeedbackRequest,
@@ -67,23 +64,7 @@ async def chat_stream(
     websocket: WebSocket,
     token: str = Query(default=""),
 ):
-    """WebSocket endpoint for real-time chat streaming."""
-    # Authenticate
-    if not token:
-        await websocket.close(code=4001, reason="Missing token")
-        return
-
-    try:
-        payload = decode_token(token)
-        if payload.get("type") != "access":
-            await websocket.close(code=4001, reason="Invalid token type")
-            return
-        user_id_str = payload["sub"]
-        user_id = uuid.UUID(user_id_str)
-    except (JWTError, KeyError, ValueError):
-        await websocket.close(code=4001, reason="Invalid token")
-        return
-
+    """WebSocket endpoint for real-time chat streaming. Single-user, no auth required."""
     await websocket.accept()
     adapter = WebSocketAdapter(websocket)
 
@@ -108,9 +89,9 @@ async def chat_stream(
                 continue
 
             async with async_session() as db:
-                # Load user for persona
+                # Load the single default user
                 user_result = await db.execute(
-                    select(User).where(User.id == user_id)
+                    select(User).limit(1)
                 )
                 user_obj = user_result.scalar_one()
 

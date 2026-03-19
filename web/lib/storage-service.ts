@@ -1,11 +1,11 @@
 /**
- * Storage Service — File management via S3-compatible object storage.
+ * Storage Service — File management via local disk storage.
  * Connects to FastAPI backend storage endpoints.
  */
 
 import { api } from "@/lib/api";
 
-// ─── Types ───
+// --- Types ---
 
 export interface StorageItem {
   name: string;
@@ -36,42 +36,21 @@ export interface UploadResult {
   content_type: string;
 }
 
-export interface PresignedUrl {
-  url: string;
-  key: string;
-  expires_in: number;
-}
-
-export interface StorageConfig {
-  endpoint_url: string;
-  access_key: string;
-  secret_key: string;
-  bucket_name: string;
-  region: string;
-  configured: boolean;
-}
-
 export interface StorageStats {
   files: number;
   folders: number;
   total_size: number;
 }
 
-// ─── Service ───
+export interface StorageConfig {
+  type: string;
+  path: string;
+  configured: boolean;
+}
+
+// --- Service ---
 
 class StorageService {
-  async getConfig(): Promise<StorageConfig> {
-    return api.get<StorageConfig>("/storage/config");
-  }
-
-  async updateConfig(config: Omit<StorageConfig, "configured">): Promise<{ status: string; configured: boolean }> {
-    return api.put<{ status: string; configured: boolean }>("/storage/config", config);
-  }
-
-  async testConnection(): Promise<StorageStatus> {
-    return api.post<StorageStatus>("/storage/test", {});
-  }
-
   async getStatus(): Promise<StorageStatus> {
     return api.get<StorageStatus>("/storage/status");
   }
@@ -80,13 +59,13 @@ class StorageService {
     return api.get<StorageStats>("/storage/stats");
   }
 
+  async getConfig(): Promise<StorageConfig> {
+    return api.get<StorageConfig>("/storage/config");
+  }
+
   async previewFile(path: string): Promise<string> {
-    const token = api.getAccessToken();
     const response = await fetch(
       `/api/v1/storage/preview?path=${encodeURIComponent(path)}`,
-      {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }
     );
     if (!response.ok) {
       const err = await response.json().catch(() => ({ detail: "Vorschau fehlgeschlagen" }));
@@ -106,10 +85,8 @@ class StorageService {
     formData.append("file", file);
     formData.append("path", path);
 
-    const token = api.getAccessToken();
     const response = await fetch("/api/v1/storage/upload", {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
     });
 
@@ -119,17 +96,6 @@ class StorageService {
     }
 
     return response.json();
-  }
-
-  async getUploadUrl(key: string, contentType: string = "application/octet-stream"): Promise<PresignedUrl> {
-    return api.post<PresignedUrl>("/storage/upload-url", {
-      key,
-      content_type: contentType,
-    });
-  }
-
-  async getDownloadUrl(path: string): Promise<PresignedUrl> {
-    return api.get<PresignedUrl>(`/storage/download-url?path=${encodeURIComponent(path)}`);
   }
 
   async createFolder(path: string): Promise<{ path: string }> {

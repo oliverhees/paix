@@ -232,13 +232,13 @@ async def send_test_notification(
 
         result = await telegram_service.send_message(
             chat_id="",  # Will be looked up from settings
-            text="<b>PAI-X Test</b>\n\nDeine Telegram-Benachrichtigungen funktionieren!",
+            text="<b>PAIONE Test</b>\n\nDeine Telegram-Benachrichtigungen funktionieren!",
         )
         # Actually use the user's chat_id
         send_result = await telegram_service.send_alert(
             user_id=str(user.id),
             alert={
-                "title": "PAI-X Test",
+                "title": "PAIONE Test",
                 "content": "Deine Telegram-Benachrichtigungen funktionieren!",
             },
         )
@@ -248,7 +248,7 @@ async def send_test_notification(
     notification = Notification(
         user_id=user.id,
         type="test",
-        title="PAI-X Test",
+        title="PAIONE Test",
         content="Dies ist eine Test-Benachrichtigung.",
         sent_channels=[request.channel],
     )

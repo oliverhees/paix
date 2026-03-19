@@ -1254,7 +1254,7 @@ function ApiCard({
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
             <Globe className="size-4" />
           </div>
           <div className="min-w-0">

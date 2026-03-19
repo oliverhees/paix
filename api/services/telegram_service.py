@@ -185,7 +185,7 @@ class TelegramService:
             return {"ok": False, "error": "Bot token and chat ID required"}
         return await self.send_message(
             chat_id,
-            "<b>PAI-X Test</b>\n\nDeine Telegram-Konfiguration funktioniert!",
+            "<b>PAIONE Test</b>\n\nDeine Telegram-Konfiguration funktioniert!",
             bot_token=bot_token,
         )
 

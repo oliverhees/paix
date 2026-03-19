@@ -212,7 +212,7 @@ function DimensionEditor({ dimension }: { dimension: TelosDimension }) {
         {dimension.agentAdditions && dimension.agentAdditions.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground">
-              Ergänzungen von PAI-X:
+              Ergänzungen von PAIONE:
             </p>
             {dimension.agentAdditions.map((addition, i) => (
               <div
@@ -375,9 +375,9 @@ function TelosExplainer() {
               Was ist TELOS?
             </h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              TELOS ist dein <strong>Identity Layer</strong> — dein persönliches Profil, das PAI-X
+              TELOS ist dein <strong>Identity Layer</strong> — dein persönliches Profil, das PAIONE
               sagt, wer du bist, was dir wichtig ist und wohin du willst. Je mehr du hier einträgst,
-              desto besser kann PAI-X dich unterstützen, weil es den Kontext deines Lebens versteht.
+              desto besser kann PAIONE dich unterstützen, weil es den Kontext deines Lebens versteht.
             </p>
           </div>
 
@@ -388,7 +388,7 @@ function TelosExplainer() {
               Warum ist das wichtig?
             </h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Ohne TELOS ist PAI-X ein generischer Assistent. <strong>Mit</strong> TELOS wird es zu
+              Ohne TELOS ist PAIONE ein generischer Assistent. <strong>Mit</strong> TELOS wird es zu
               deinem persönlichen Berater: Es kennt deine Ziele, versteht deine Herausforderungen
               und kann proaktiv Vorschläge machen, die zu deinem Leben passen.
             </p>
@@ -451,7 +451,7 @@ function TelosExplainer() {
               <li className="flex gap-2">
                 <span className="font-medium text-foreground">4.</span>
                 <span>
-                  <strong>PAI-X lernt mit</strong> — Im Chat kann PAI-X Vorschläge machen, die hier
+                  <strong>PAIONE lernt mit</strong> — Im Chat kann PAIONE Vorschläge machen, die hier
                   als grüne Einträge erscheinen. Du bestätigst oder löschst sie.
                 </span>
               </li>
@@ -497,7 +497,7 @@ export default function TelosPage() {
           TELOS
         </h1>
         <p className="text-muted-foreground">
-          Dein Identity Layer — 10 Dimensionen, die PAI-X sagen, wer du bist.
+          Dein Identity Layer — 10 Dimensionen, die PAIONE sagen, wer du bist.
         </p>
       </div>
 

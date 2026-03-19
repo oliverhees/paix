@@ -271,8 +271,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // ─── Backend-connected actions ───
 
-  setAuthToken: (token) => {
-    chatService.setToken(token);
+  setAuthToken: (_token) => {
+    // No-op: single-user mode, no auth tokens needed
   },
 
   loadSessions: async () => {

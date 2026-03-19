@@ -1,5 +1,5 @@
-# PAI-X Sandbox — Isolated code execution environment
-# Build: docker build -t paix-sandbox:latest -f infra/dockerfiles/Dockerfile.sandbox .
+# PAIONE Sandbox — Isolated code execution environment
+# Build: docker build -t paione-sandbox:latest -f infra/dockerfiles/Dockerfile.sandbox .
 
 FROM python:3.12-slim
 

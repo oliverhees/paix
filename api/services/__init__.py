@@ -1,4 +1,4 @@
-"""PAI-X Services — external integrations and business logic."""
+"""PAIONE Services — external integrations and business logic."""
 
 from services.llm_service import llm_service
 from services.graphiti_service import graphiti_service

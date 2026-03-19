@@ -74,22 +74,22 @@ async def telegram_webhook(request: Request):
                 from services.telegram_service import telegram_service
                 await telegram_service.send_message(
                     chat_id,
-                    "Erfolgreich verknuepft! Du erhaeltst jetzt Benachrichtigungen von PAI-X hier.",
+                    "Erfolgreich verknuepft! Du erhaeltst jetzt Benachrichtigungen von PAIONE hier.",
                 )
                 return {"ok": True}
             else:
                 from services.telegram_service import telegram_service
                 await telegram_service.send_message(
                     chat_id,
-                    "Ungueltiger oder abgelaufener Code. Bitte generiere einen neuen in den PAI-X Einstellungen.",
+                    "Ungueltiger oder abgelaufener Code. Bitte generiere einen neuen in den PAIONE Einstellungen.",
                 )
                 return {"ok": True}
     elif text == "/start":
         from services.telegram_service import telegram_service
         await telegram_service.send_message(
             chat_id,
-            "Willkommen bei PAI-X!\n\n"
-            "Um deinen Account zu verbinden, gehe zu PAI-X Einstellungen > Benachrichtigungen "
+            "Willkommen bei PAIONE!\n\n"
+            "Um deinen Account zu verbinden, gehe zu PAIONE Einstellungen > Benachrichtigungen "
             "und klicke auf 'Mit Telegram verbinden'. Du erhaeltst dann einen 6-stelligen Code.\n\n"
             "Sende: /start DEINCODE",
         )
@@ -110,8 +110,8 @@ async def telegram_webhook(request: Request):
 
             await telegram_service.send_message(
                 chat_id,
-                "Dein Telegram-Account ist nicht mit PAI-X verknuepft. "
-                "Bitte verbinde ihn in den PAI-X Einstellungen.",
+                "Dein Telegram-Account ist nicht mit PAIONE verknuepft. "
+                "Bitte verbinde ihn in den PAIONE Einstellungen.",
             )
             return {"ok": True}
 

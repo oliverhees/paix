@@ -1,13 +1,16 @@
 """Skills Endpoints — skill configuration, execution, and logs."""
 
+import asyncio
 import json
 import logging
 import re
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy import case, func, select, update, delete
+from starlette.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.dependencies import get_current_user
@@ -18,6 +21,7 @@ from models.user import User
 from services.llm_service import llm_service, get_user_anthropic_key
 from services.skill_service import skill_service, SKILL_DEFINITIONS, DEFAULT_SKILL_MDS
 from services.skill_parser import parse_skill_md, build_skill_md
+from services.log_translator import translate_tool, translate_status
 
 logger = logging.getLogger(__name__)
 
@@ -125,11 +129,11 @@ class SkillParseMdRequest(BaseModel):
 # ──────────────────────────────────────────────
 
 SKILL_GENERATOR_SYSTEM_PROMPT = """\
-Du bist ein Skill-Konfigurator fuer PAI-X, einen Personal AI Assistant. Deine Aufgabe ist es, durch gezielte Fragen herauszufinden, was der Benutzer braucht, und daraus einen Skill im SKILL.md Format zu erstellen.
+Du bist ein Skill-Konfigurator fuer PAIONE, einen Personal AI · ONE. Deine Aufgabe ist es, durch gezielte Fragen herauszufinden, was der Benutzer braucht, und daraus einen Skill im SKILL.md Format zu erstellen.
 
 ## Verfuegbare System-Capabilities
 
-Der Skill laeuft innerhalb von PAI-X und hat Zugriff auf folgende Tools. Nutze diese in deinen Skill-Anweisungen:
+Der Skill laeuft innerhalb von PAIONE und hat Zugriff auf folgende Tools. Nutze diese in deinen Skill-Anweisungen:
 
 ### Websuche & Internet
 - **web_search**: Websuche mit Brave Search oder DuckDuckGo. Parameter: query (string), max_results (int, max 5)
@@ -841,10 +845,13 @@ async def get_activity_feed(
             "id": str(e.id),
             "type": "skill",
             "name": e.skill_id,
+            "name_de": translate_tool(e.skill_id),
             "status": e.status,
+            "status_de": translate_status(e.status),
             "duration_ms": e.duration_ms,
             "output_preview": (e.output_summary or "")[:200],
             "error": e.error_message,
+            "tool_calls": (e.metadata_json or {}).get("tool_calls", []),
             "created_at": e.created_at.isoformat() if e.created_at else None,
             "completed_at": e.completed_at.isoformat() if e.completed_at else None,
         }
@@ -868,10 +875,13 @@ async def get_activity_feed(
             "id": str(row[0].id),
             "type": "workflow",
             "name": row[1] or "Unbekannt",
+            "name_de": row[1] or "Unbekannt",
             "status": row[0].status,
+            "status_de": translate_status(row[0].status),
             "duration_ms": row[0].duration_ms,
             "output_preview": (row[0].result_summary or "")[:200],
             "error": row[0].error_message,
+            "tool_calls": [],
             "created_at": row[0].created_at.isoformat() if row[0].created_at else None,
         }
         for row in routine_result.all()
@@ -884,7 +894,65 @@ async def get_activity_feed(
         reverse=True,
     )[:limit]
 
-    return {"events": all_events, "count": len(all_events)}
+    has_running = any(
+        e["status"] in ("running", "pending") for e in all_events
+    )
+    return {"events": all_events, "count": len(all_events), "has_running": has_running}
+
+
+@router.get("/skills/activity-stream")
+async def activity_stream(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """SSE stream for live activity updates — replaces polling."""
+
+    async def event_generator():
+        last_check = datetime.now(timezone.utc)
+        yield f"data: {json.dumps({'type': 'connected'})}\n\n"
+        while True:
+            await asyncio.sleep(3)
+            try:
+                result = await db.execute(
+                    select(SkillExecution)
+                    .where(
+                        SkillExecution.user_id == user.id,
+                        SkillExecution.created_at > last_check,
+                    )
+                    .order_by(SkillExecution.created_at.desc())
+                    .limit(5)
+                )
+                new_events = result.scalars().all()
+                if new_events:
+                    for e in new_events:
+                        data = json.dumps({
+                            "id": str(e.id),
+                            "type": "skill",
+                            "name": e.skill_id,
+                            "name_de": translate_tool(e.skill_id),
+                            "status": e.status,
+                            "status_de": translate_status(e.status),
+                            "duration_ms": e.duration_ms,
+                            "error": e.error_message,
+                            "tool_calls": (e.metadata_json or {}).get("tool_calls", []),
+                            "created_at": e.created_at.isoformat() if e.created_at else None,
+                            "completed_at": e.completed_at.isoformat() if e.completed_at else None,
+                        })
+                        yield f"data: {data}\n\n"
+                    last_check = datetime.now(timezone.utc)
+            except Exception:
+                # Connection likely closed or DB error — just continue
+                pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/skills/{skill_id}")

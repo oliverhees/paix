@@ -14,12 +14,9 @@ import {
   Zap,
   Wrench,
   FolderOpen,
-  ChevronsUpDown,
-  LogOut,
   Store,
 } from "lucide-react";
 
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Sidebar,
   SidebarContent,
@@ -35,14 +32,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useActivityStatus } from "@/components/pai/activity-feed";
+import { cn } from "@/lib/utils";
 
 const navItems = [
   {
@@ -97,10 +88,13 @@ const navItems = [
   },
 ];
 
+/** Sidebar items that show a running indicator */
+const RUNNING_BADGE_ITEMS = new Set(["/skills", "/routines"]);
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { setOpenMobile, isMobile } = useSidebar();
-  const isMobileHook = useIsMobile();
+  const { hasRunning } = useActivityStatus(10000);
 
   // Close mobile sidebar on navigation
   useEffect(() => {
@@ -122,9 +116,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <Brain className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">PAI-X</span>
+                  <span className="truncate font-semibold">PAIONE</span>
                   <span className="truncate text-xs text-sidebar-foreground/70">
-                    Personal AI Assistant
+                    Personal AI · ONE
                   </span>
                 </div>
               </Link>
@@ -151,7 +145,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       tooltip={item.title}
                     >
                       <Link href={item.href}>
-                        <item.icon />
+                        <div className="relative">
+                          <item.icon />
+                          {hasRunning && RUNNING_BADGE_ITEMS.has(item.href) && (
+                            <span
+                              className={cn(
+                                "absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-500",
+                                "animate-pulse ring-2 ring-sidebar"
+                              )}
+                            />
+                          )}
+                        </div>
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
@@ -166,50 +170,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                >
-                  <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarFallback className="rounded-lg text-xs font-medium">
-                      OH
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">Oliver</span>
-                    <span className="truncate text-xs">oliver@hrcodelabs.de</span>
-                  </div>
-                  <ChevronsUpDown className="ml-auto size-4" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-                side={isMobileHook ? "bottom" : "right"}
-                align="end"
-                sideOffset={4}
-              >
-                <DropdownMenuLabel className="p-0 font-normal">
-                  <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                    <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarFallback className="rounded-lg text-xs font-medium">
-                        OH
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">Oliver</span>
-                      <span className="truncate text-xs">oliver@hrcodelabs.de</span>
-                    </div>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <LogOut className="mr-2 size-4" />
-                  Abmelden
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <SidebarMenuButton
+              size="lg"
+              asChild
+              tooltip="Settings"
+            >
+              <Link href="/settings">
+                <Avatar className="h-8 w-8 rounded-lg">
+                  <AvatarFallback className="rounded-lg text-xs font-medium">
+                    P1
+                  </AvatarFallback>
+                </Avatar>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">PAIONE</span>
+                  <span className="truncate text-xs text-sidebar-foreground/70">Personal AI</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

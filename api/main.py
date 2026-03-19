@@ -1,4 +1,4 @@
-"""PAI-X API — FastAPI Application Entry Point."""
+"""PAIONE API — FastAPI Application Entry Point."""
 
 from contextlib import asynccontextmanager
 
@@ -10,7 +10,8 @@ from models.database import init_db, close_db
 from routers import health, chat, calendar, telos, memory, models
 from routers import auth, skills, notifications, internal, integrations, reminders, werkzeuge, api_werkzeuge, routines, telegram
 from routers import agent_state, storage
-from routers import claude_oauth, marketplace
+from routers import marketplace
+from routers import settings
 from services.graphiti_service import graphiti_service
 from services.llm_service import llm_service
 from services.scheduler_service import start_scheduler, stop_scheduler, scheduler
@@ -48,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="Personal AI Assistant — Backend API",
+    description="Personal AI · ONE — Backend API",
     docs_url="/api/v1/docs" if settings.debug else None,
     redoc_url="/api/v1/redoc" if settings.debug else None,
     lifespan=lifespan,
@@ -71,10 +72,10 @@ app.add_middleware(
 # Health (no auth required)
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 
-# Auth (no auth required for register/login/refresh)
+# Auth (single-user — /auth/me and /auth/me PUT only)
 app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 
-# Protected routes (require JWT via get_current_user)
+# All routes (single-user, no auth required)
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
 app.include_router(models.router, prefix="/api/v1", tags=["models"])
 app.include_router(calendar.router, prefix="/api/v1", tags=["calendar"])
@@ -90,15 +91,13 @@ app.include_router(api_werkzeuge.router, prefix="/api/v1", tags=["api-werkzeuge"
 app.include_router(routines.router, prefix="/api/v1", tags=["routines"])
 app.include_router(agent_state.router, prefix="/api/v1", tags=["agent-state"])
 app.include_router(storage.router, prefix="/api/v1", tags=["storage"])
+app.include_router(settings.router, prefix="/api/v1", tags=["settings"])
 
 # Marketplace (public browse, auth for install/submit)
 app.include_router(marketplace.router, prefix="/api/v1", tags=["marketplace"])
 
 # Telegram webhook (public — Telegram verifies via bot token)
 app.include_router(telegram.router, prefix="/api/v1", tags=["telegram"])
-
-# Claude OAuth (PKCE flow for subscription token acquisition)
-app.include_router(claude_oauth.router, prefix="/api/v1", tags=["claude-oauth"])
 
 # Internal routes (protected by X-Internal-Key header)
 app.include_router(internal.router, prefix="/api/v1", tags=["internal"])

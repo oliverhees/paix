@@ -1,77 +1,44 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 /**
- * AuthGuard — client-side authentication guard for protected routes.
+ * AuthGuard — simplified for single-user mode.
  *
- * Renders children only when the user is authenticated.
- * Redirects to /login if not authenticated after initialization.
- * Includes error handling and timeout to prevent white page on slow/failed auth.
+ * Checks setup status first. If no user exists, redirects to /setup.
+ * Otherwise initializes user profile on mount, then renders children.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const { user, isLoading, isInitialized, initialize } = useAuthStore();
+  const { isLoading, isInitialized, initialize } = useAuthStore();
   const [isReady, setIsReady] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const resolvedRef = useRef(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
-
-    const init = async () => {
+    async function checkSetup() {
       try {
-        await initialize();
-      } catch (err) {
-        console.error("[AuthGuard] Initialization failed:", err);
-        if (!resolvedRef.current) {
-          setError("Authentifizierung fehlgeschlagen");
+        const res = await fetch("/api/v1/auth/setup-status");
+        const data = await res.json();
+        if (!data.setup_complete) {
+          router.replace("/setup");
+          return;
         }
+      } catch {
+        // If check fails, continue to app (backend may be starting)
       }
-    };
-
-    init();
-
-    // Timeout: if auth check takes > 10s, something is wrong
-    timeout = setTimeout(() => {
-      if (!resolvedRef.current) {
-        console.error("[AuthGuard] Initialization timeout");
-        setError("Verbindung zum Server dauert zu lange");
-      }
-    }, 10000);
-
-    return () => clearTimeout(timeout);
-  }, [initialize]);
+      setCheckingSetup(false);
+      initialize();
+    }
+    checkSetup();
+  }, [initialize, router]);
 
   useEffect(() => {
-    if (!isInitialized || isLoading) return;
-
-    resolvedRef.current = true;
-    if (!user) {
-      router.replace("/login");
-    } else {
+    if (!checkingSetup && isInitialized && !isLoading) {
       setIsReady(true);
     }
-  }, [user, isInitialized, isLoading, router]);
-
-  if (error) {
-    return (
-      <div
-        className="flex h-screen flex-col items-center justify-center gap-4"
-        style={{ backgroundColor: "#09090b", color: "#fafafa" }}
-      >
-        <p className="text-sm text-destructive">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent"
-        >
-          Seite neu laden
-        </button>
-      </div>
-    );
-  }
+  }, [checkingSetup, isInitialized, isLoading]);
 
   if (!isReady) {
     return (

@@ -1,4 +1,4 @@
-"""PAI-X Database Models."""
+"""PAIONE Database Models."""
 
 from models.user import User
 from models.session import ChatSession, ChatMessage, ChatArtifact

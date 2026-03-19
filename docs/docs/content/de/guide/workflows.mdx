@@ -1,0 +1,189 @@
+# Workflows
+
+Workflows (in der UI "Routines" genannt) sind geplante, autonome KI-Aufgaben. Sie laufen nach einem Cron-Zeitplan, fuehren einen Prompt mit optionalen Tools aus und liefern Ergebnisse ueber Benachrichtigungen, Webhooks oder Chains.
+
+## Was ist ein Workflow?
+
+Ein Workflow ist ein Prompt, der automatisch nach Zeitplan laeuft. PAIONE fuehrt den Prompt mit dem konfigurierten Modell aus, verarbeitet das Ergebnis und benachrichtigt dich.
+
+**Beispiele:**
+- "Jeden Werktag um 8 Uhr meinen Kalender zusammenfassen und ein Briefing erstellen"
+- "Jeden Montag meine offenen GitHub Issues pruefen und priorisieren"
+- "Stuendlich meinen Posteingang auf dringende Nachrichten checken"
+
+## Workflow erstellen
+
+### Mit dem AI Builder
+
+1. Gehe zu **Routines** in der Sidebar
+2. Klicke auf **Neue Routine**
+3. Waehle **AI Builder**
+4. Beschreibe, was du willst: "Pruefe jeden Morgen um 9 Uhr meine GitHub Repos auf offene PRs"
+5. PAIONE generiert die komplette Konfiguration (Prompt, Zeitplan, Modell, Tags)
+6. Pruefen und speichern
+
+### Aus einem Template
+
+1. Gehe zu **Routines > Templates**
+2. Durchsuche nach Kategorie (Produktivitaet, Monitoring, Reporting, etc.)
+3. Klicke auf ein Template
+4. Fuelle die Variablen aus (z.B. Repository-Name, E-Mail-Adresse)
+5. Passe den Zeitplan bei Bedarf an
+6. Speichern
+
+### Manuell
+
+1. Gehe zu **Routines > Neue Routine**
+2. Fuelle die Felder aus:
+
+| Feld | Pflicht | Beschreibung |
+|------|---------|-------------|
+| Name | Ja | Kurzer, beschreibender Name |
+| Prompt | Ja | Die Anweisung fuer die KI |
+| Cron Expression | Ja | Wann ausfuehren (z.B. `0 8 * * 1-5` = Werktags um 8 Uhr) |
+| Model | Nein | Welches Claude-Modell (Standard: Sonnet) |
+| Max Tokens | Nein | Antwortlaenge (Standard: 8192) |
+| Temperature | Nein | Kreativitaet (0.0-1.0, Standard: 0.7) |
+| Tags | Nein | Labels zur Organisation |
+
+## Cron-Zeitplan
+
+Workflows nutzen Standard-5-Feld-Cron-Ausdruecke:
+
+```
+ *    *    *    *    *
+ |    |    |    |    |
+ |    |    |    |    +-- Wochentag (0-7, 0=So)
+ |    |    |    +------- Monat (1-12)
+ |    |    +------------ Tag (1-31)
+ |    +----------------- Stunde (0-23)
+ +---------------------- Minute (0-59)
+```
+
+**Gaengige Muster:**
+
+| Ausdruck | Bedeutung |
+|----------|-----------|
+| `0 8 * * 1-5` | Werktags um 8:00 Uhr |
+| `0 9 * * 1` | Jeden Montag um 9:00 Uhr |
+| `*/30 * * * *` | Alle 30 Minuten |
+| `0 0 1 * *` | Erster Tag im Monat um Mitternacht |
+| `0 18 * * 5` | Jeden Freitag um 18:00 Uhr |
+
+Alle Zeiten respektieren die konfigurierte Zeitzone (Standard: `Europe/Berlin`).
+
+## Workflow-Verkettung (Chains)
+
+Verkette Workflows, damit einer den naechsten ausloest:
+
+```
+Datensammlung --> Analyse --> Berichterstellung --> E-Mail-Benachrichtigung
+```
+
+### Chain erstellen
+
+1. Oeffne einen Workflow
+2. Gehe zum **Chains**-Tab
+3. Klicke auf **Chain hinzufuegen**
+4. Waehle den Ziel-Workflow
+5. Konfiguriere:
+
+| Option | Beschreibung |
+|--------|-------------|
+| Trigger on | `success`, `failure` oder `always` |
+| Pass result | Ausgabe an den naechsten Workflow weiterleiten |
+| Context mapping | Bestimmte Felder zwischen Workflows mappen |
+| Execution order | Prioritaet bei mehreren Chains |
+
+### Chain-Graph
+
+Sieh alle Chains deiner Workflows unter **Routines > Chains > Graph**. Das zeigt den vollstaendigen DAG (gerichteter azyklischer Graph) deiner automatisierten Pipeline.
+
+Selbst-Chains sind ausgeschlossen -- ein Workflow kann sich nicht selbst ausloesen.
+
+## Manuell ausloesen
+
+Fuehre jeden Workflow auf Abruf aus:
+
+1. Oeffne den Workflow
+2. Klicke auf **Jetzt ausfuehren**
+3. Optional: zusaetzlichen Kontext mitgeben
+4. Optional: Bedingungspruefung ueberspringen
+
+## Bedingte Ausfuehrung
+
+Fuege einen `condition_prompt` hinzu, um zu pruefen ob der Workflow wirklich laufen soll:
+
+```
+Nur ausfuehren, wenn es ungelesene E-Mails der letzten 24 Stunden gibt.
+```
+
+Die Bedingung wird vor dem Hauptprompt ausgewertet. Wenn sie "skip" zurueckgibt, wird der Lauf als uebersprungen markiert und kein Token fuer die Hauptausfuehrung verbraucht.
+
+## Kostenkontrolle
+
+| Einstellung | Beschreibung |
+|-------------|-------------|
+| Max. Kosten pro Lauf | Ausfuehrung stoppen wenn geschaetzte Kosten ueberschritten (in Cent) |
+| Monatsbudget | Gesamtes Monatsbudget ueber alle Laeufe dieses Workflows |
+
+## Webhooks
+
+Externe Services bei Workflow-Abschluss auloesen:
+
+1. Oeffne einen Workflow
+2. Gehe zum **Webhooks**-Tab
+3. Fuege eine Webhook-URL hinzu
+4. Konfiguriere: Methode (POST/GET), Headers, Payload Template, Trigger-Bedingung
+5. Optional: Signing Secret fuer Verifikation
+
+## Benachrichtigungen
+
+Nach jedem Lauf erstellt PAIONE eine Benachrichtigung mit:
+- Titel und Zusammenfassung
+- Status (Erfolg/Fehler)
+- Link zu den vollstaendigen Laufdetails
+
+Benachrichtigungen erscheinen im **Routines > Notifications**-Panel. Aktiviere **Web Push** fuer Browser-Benachrichtigungen, auch wenn der Tab geschlossen ist.
+
+## Templates
+
+Templates sind vorkonfigurierte Workflow-Vorlagen:
+
+| Feld | Beschreibung |
+|------|-------------|
+| Kategorie | Produktivitaet, Monitoring, Reporting, etc. |
+| Empfohlener Cron | Vorgeschlagener Zeitplan |
+| Variablen | Platzhalter, die du beim Erstellen ausfuellst |
+| Prompt Template | Basis-Prompt mit `{variable}`-Platzhaltern |
+
+## Import / Export
+
+- **Export**: Workflow-Konfigurationen als JSON herunterladen (einzeln oder alle)
+- **Import**: JSON hochladen um Workflows zu erstellen (importiert als inaktiv)
+- **Massenaktionen**: Mehrere Workflows gleichzeitig aktivieren, deaktivieren oder loeschen
+
+## Analytics
+
+Sieh aggregierte Statistiken unter **Routines > Analytics**:
+
+- Gesamtlaeufe, Erfolgsrate, Fehlerrate
+- Token-Verbrauch und geschaetzte Kosten
+- Durchschnittliche Dauer pro Workflow
+- Filterbar nach Zeitraum
+
+## Laufhistorie
+
+Jeder Workflow protokolliert seine Ausfuehrungshistorie:
+
+| Feld | Beschreibung |
+|------|-------------|
+| Status | `pending`, `running`, `success`, `failed`, `cancelled`, `skipped` |
+| Trigger-Typ | `scheduled` oder `manual` |
+| Dauer | Ausfuehrungszeit |
+| Token | Input + Output Token-Anzahl |
+| Kosten | Geschaetzte Kosten in Cent |
+| Tool Calls | Anzahl der Tool-Aufrufe |
+| Artefakte | Generierte Dateien oder Code-Bloecke |
+
+Sieh den vollstaendigen Ergebnistext, aufgeloesten Prompt und alle Artefakte in der Laufdetailseite ein. Fehlgeschlagene Laeufe koennen wiederholt werden.

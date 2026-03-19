@@ -1,105 +1,142 @@
 services:
+  paione-web:
+    build: ./web
+    container_name: paione-web
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://paione-api:8000/api/v1
+      HOSTNAME: "0.0.0.0"
+    depends_on:
+      paione-api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - paione-net
+
+  paione-api:
+    build: ./api
+    container_name: paione-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./USER:/app/USER:ro
+      - paione-data:/app/DATA
+    env_file:
+      - ./USER/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://paione:${POSTGRES_PASSWORD:-paione}@postgres:5432/paione
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      FALKORDB_HOST: falkordb
+      FALKORDB_PORT: 6379
+      STORAGE_TYPE: local
+      STORAGE_PATH: /app/DATA/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - paione-net
+
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: paix
-      POSTGRES_USER: paix
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-paix}
+      POSTGRES_USER: paione
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-paione}
+      POSTGRES_DB: paione
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U paix"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U paione"]
+      interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - paione-net
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - paione-net
 
   falkordb:
     image: falkordb/falkordb:latest
-    ports:
-      - "6380:6379"
     volumes:
-      - falkordb_data:/data
+      - falkordb-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "-p", "6379", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
-
-  api:
-    build: ./api
-    ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql+asyncpg://paix:${POSTGRES_PASSWORD:-paix}@postgres:5432/paix
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      FALKORDB_HOST: falkordb
-      FALKORDB_PORT: 6379
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-change-me}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      falkordb:
-        condition: service_healthy
-
-  web:
-    build: ./web
-    ports:
-      - "3000:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://api:8000/api/v1
-    depends_on:
-      - api
+    restart: unless-stopped
+    networks:
+      - paione-net
 
   celery-worker:
     build: ./api
+    container_name: paione-celery-worker
     command: celery -A celery_app worker --loglevel=info --concurrency=2 -Q default,proactive,memory
+    volumes:
+      - ./USER:/app/USER:ro
+      - paione-data:/app/DATA
+    env_file:
+      - ./USER/.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://paix:${POSTGRES_PASSWORD:-paix}@postgres:5432/paix
+      DATABASE_URL: postgresql+asyncpg://paione:${POSTGRES_PASSWORD:-paione}@postgres:5432/paione
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       FALKORDB_HOST: falkordb
       FALKORDB_PORT: 6379
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-change-me}
+      STORAGE_TYPE: local
+      STORAGE_PATH: /app/DATA/storage
     depends_on:
-      postgres:
+      paione-api:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      falkordb:
-        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - paione-net
 
   celery-beat:
     build: ./api
+    container_name: paione-celery-beat
     command: celery -A celery_app beat --loglevel=info
+    env_file:
+      - ./USER/.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://paix:${POSTGRES_PASSWORD:-paix}@postgres:5432/paix
+      DATABASE_URL: postgresql+asyncpg://paione:${POSTGRES_PASSWORD:-paione}@postgres:5432/paione
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
     depends_on:
-      redis:
+      paione-api:
         condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - paione-net
 
 volumes:
-  postgres_data:
-  falkordb_data:
+  postgres-data:
+  falkordb-data:
+  paione-data:
+
+networks:
+  paione-net:
+    driver: bridge

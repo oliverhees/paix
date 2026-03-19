@@ -1,0 +1,63 @@
+# TELOS Identity System
+
+TELOS teaches PAIONE who you are. It consists of 10 identity dimensions stored as Markdown files, scored for relevance per message within a 1,000-token budget.
+
+## The 10 Dimensions
+
+| Dimension | File | What It Describes |
+|-----------|------|-------------------|
+| Mission | `mission.md` | Your life purpose and core motivation |
+| Goals | `goals.md` | Short, medium, and long-term goals |
+| Beliefs | `beliefs.md` | Values, convictions, principles |
+| Challenges | `challenges.md` | Current problems and blockers |
+| Projects | `projects.md` | Active projects and ventures |
+| Strategies | `strategies.md` | Approaches and methods |
+| Ideas | `ideas.md` | Concepts and brainstorms |
+| Models | `models.md` | Mental models and frameworks |
+| Narratives | `narratives.md` | Personal history and context |
+| Learnings | `learnings.md` | Insights and lessons learned |
+
+## How It Works
+
+Not all dimensions are relevant to every message. TELOS uses **keyword-based relevance scoring**:
+
+1. Your message is analyzed for significant keywords
+2. Each dimension is scored based on keyword overlap
+3. The most relevant dimensions are loaded until the 1,000-token budget is filled
+4. If nothing matches, `mission.md` + `goals.md` are loaded as fallback
+
+This means when you talk about your projects, PAIONE loads your project context. When you discuss challenges, it loads your challenges. Always within budget.
+
+## Editing Your TELOS Files
+
+Your TELOS files live in `USER/groups/telos/`. Edit them directly:
+
+```
+USER/groups/telos/
+├── mission.md
+├── goals.md
+├── beliefs.md
+├── challenges.md
+├── projects.md
+├── strategies.md
+├── ideas.md
+├── models.md
+├── narratives.md
+└── learnings.md
+```
+
+**Tips:**
+- Write in natural language, not bullet points only — keywords get extracted automatically
+- Be specific: "Launch PAIONE by June 2026" is better than "launch product"
+- Update regularly — stale TELOS data leads to stale context
+- Each file should stay under 200 tokens for best budget utilization
+
+## TELOS vs Persona
+
+| | Persona | TELOS |
+|--|---------|-------|
+| **Defines** | How PAIONE communicates | Who YOU are |
+| **Scope** | Per channel group | Global (one identity) |
+| **Files** | 5 (identity, rules, skills, preferences, pinned) | 10 dimensions |
+| **Budget** | 1,500 tokens | 1,000 tokens |
+| **Loaded** | Always, all files | Relevance-scored per message |

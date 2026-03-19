@@ -24,6 +24,9 @@ from services.skill_service import skill_service
 from services.graphiti_service import graphiti_service
 from services.docker_executor_service import docker_executor
 from services.channel_adapters.base import ChannelAdapter
+from services.token_budget import truncate_to_budget, get_budget_report
+from services.telos_scorer import score_dimensions, TELOS_DIMENSIONS
+from services.persona_loader import persona_loader
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
@@ -133,7 +136,7 @@ class ChatEngine:
         self, user: User, user_message: str, db: "AsyncSession | None" = None
     ) -> str:
         """Build dynamic system prompt from user persona + TELOS + memory + agent state."""
-        persona_name = user.persona_name or "PAI-X"
+        persona_name = user.persona_name or "PAIONE"
         user_id = str(user.id)
 
         # ── Current date/time (always first in system prompt) ──
@@ -159,29 +162,16 @@ class ChatEngine:
         except Exception:
             date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-        date_prefix = f"Aktuelles Datum und Uhrzeit: {date_str}\n\n"
+        date_prefix = truncate_to_budget(
+            f"Aktuelles Datum und Uhrzeit: {date_str}", "temporal"
+        ) + "\n\n"
 
-        # Structured persona sections
-        sections = []
-        if user.persona_personality:
-            sections.append(f"## Persoenlichkeit\n{user.persona_personality}")
-        if user.persona_about_user:
-            sections.append(f"## Ueber den Nutzer\n{user.persona_about_user}")
-        if user.persona_communication:
-            sections.append(f"## Kommunikationsstil\n{user.persona_communication}")
+        # Persona from markdown files (User -> System defaults -> fallback)
+        persona_text = persona_loader.load_persona(locale="de")
+        if not persona_text:
+            persona_text = f"Du bist {persona_name}, ein persoenlicher KI-Assistent."
 
-        if sections:
-            base_persona = f"Du bist {persona_name}.\n\n" + "\n\n".join(sections) + "\n\n"
-        elif user.persona_prompt:
-            # Fallback to legacy free-text field
-            base_persona = user.persona_prompt + "\n\n"
-        else:
-            base_persona = (
-                f"Du bist {persona_name}, ein persoenlicher AI-Assistent. "
-                "Du sprichst Deutsch, bist praezise, freundlich und proaktiv. "
-                "Du kennst den Nutzer, seine Ziele, Projekte und Kontakte aus dem TELOS-Profil "
-                "und dem Knowledge Graph. Antworte hilfreich und kontextbezogen.\n\n"
-            )
+        base_persona = persona_text + "\n\n"
 
         base_persona += (
             "ARTIFACTS: Wenn du substanziellen Content erstellst (Code-Dateien, Dokumente, "
@@ -190,13 +180,15 @@ class ChatEngine:
             "Nutze es NICHT fuer kurze Code-Snippets oder einfache Textantworten. "
             "Nutze es fuer: ganze Dateien, laengere Dokumente, HTML-Previews, Diagramme."
         )
+        base_persona = truncate_to_budget(base_persona, "persona")
 
-        # TELOS context from PostgreSQL
+        # TELOS context from PostgreSQL — keyword-scored, budget-aware
         telos_text = ""
         if db is not None:
             try:
                 from models.telos_snapshot import TelosSnapshot
-                for dim_name in ["goals", "mission", "challenges"]:
+                all_dimensions: dict[str, str] = {}
+                for dim_name in TELOS_DIMENSIONS:
                     result = await db.execute(
                         select(TelosSnapshot)
                         .where(
@@ -215,10 +207,14 @@ class ChatEngine:
                             if e.get("status") != "archived" and e.get("content")
                         ]
                         if active:
-                            label = {"goals": "Ziele", "mission": "Mission", "challenges": "Herausforderungen"}.get(dim_name, dim_name)
-                            telos_text += f"\n\n{label} des Nutzers:\n" + "\n".join(
-                                f"- {g}" for g in active[:5]
-                            )
+                            content = "\n".join(f"- {g}" for g in active[:5])
+                            if content.strip():
+                                all_dimensions[dim_name] = content
+
+                if all_dimensions:
+                    telos_text = "\n\n## TELOS Profil\n" + score_dimensions(
+                        user_message, all_dimensions
+                    )
             except Exception:
                 pass
 
@@ -237,6 +233,8 @@ class ChatEngine:
                     memory_text = "\n\nRelevanter Kontext aus dem Gedaechtnis:\n" + "\n".join(snippets)
         except Exception:
             pass
+
+        memory_text = truncate_to_budget(memory_text, "graphiti")
 
         # Agent state context (last conversation summary + user preferences)
         agent_state_text = ""
@@ -268,6 +266,15 @@ class ChatEngine:
                     )
             except Exception:
                 pass
+
+        # Log token budget usage
+        budget_report = get_budget_report({
+            "temporal": date_prefix,
+            "persona": base_persona,
+            "telos": telos_text,
+            "graphiti": memory_text,
+        })
+        logger.info("Token budget usage: %s", budget_report)
 
         return date_prefix + base_persona + telos_text + memory_text + agent_state_text
 
@@ -419,17 +426,11 @@ class ChatEngine:
     # ──────────────────────────────────────────────
 
     async def _get_storage_tools(self, db: "AsyncSession", user_id: uuid.UUID) -> list[dict]:
-        """Return storage tools if user has S3 configured in their profile."""
-        from sqlalchemy import select
-        from models.user import User
-        result = await db.execute(select(User).where(User.id == user_id))
-        user = result.scalar_one_or_none()
-        if not user or not user.s3_endpoint_url or not user.s3_access_key or not user.s3_secret_key:
-            return []
+        """Return storage tools — always available with local storage."""
         return [
             {
                 "name": "storage_list",
-                "description": "List files and folders in the user's object storage. Returns folder and file names with sizes.",
+                "description": "List files and folders in the user's local storage. Returns folder and file names with sizes.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -443,7 +444,7 @@ class ChatEngine:
             },
             {
                 "name": "storage_read",
-                "description": "Read a text file from object storage. Returns the file content as text (max 50KB).",
+                "description": "Read a text file from local storage. Returns the file content as text (max 50KB).",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -457,7 +458,7 @@ class ChatEngine:
             },
             {
                 "name": "storage_write",
-                "description": "Write/save a text file to object storage.",
+                "description": "Write/save a text file to local storage.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -479,7 +480,7 @@ class ChatEngine:
             },
             {
                 "name": "storage_delete",
-                "description": "Delete a file or folder from object storage.",
+                "description": "Delete a file or folder from local storage.",
                 "input_schema": {
                     "type": "object",
                     "properties": {

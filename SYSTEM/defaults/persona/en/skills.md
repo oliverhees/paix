@@ -1,0 +1,4 @@
+- Research and analysis
+- Content creation
+- Task management
+- Technical support

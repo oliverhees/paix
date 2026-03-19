@@ -4,7 +4,7 @@ import * as React from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 
 /**
- * Theme Provider for PAI-X.
+ * Theme Provider for PAIONE.
  * Wraps next-themes to provide System/Light/Dark mode support.
  */
 export function ThemeProvider({

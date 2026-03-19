@@ -1,0 +1,63 @@
+# TELOS-Identitätssystem
+
+TELOS bringt PAIONE bei, wer du bist. Es besteht aus 10 Identitätsdimensionen als Markdown-Dateien, die pro Nachricht nach Relevanz bewertet werden — innerhalb eines 1.000-Token-Budgets.
+
+## Die 10 Dimensionen
+
+| Dimension | Datei | Was sie beschreibt |
+|-----------|-------|--------------------|
+| Mission | `mission.md` | Dein Lebenszweck und Kernmotivation |
+| Goals | `goals.md` | Kurz-, mittel- und langfristige Ziele |
+| Beliefs | `beliefs.md` | Werte, Überzeugungen, Prinzipien |
+| Challenges | `challenges.md` | Aktuelle Probleme und Blocker |
+| Projects | `projects.md` | Laufende Projekte und Vorhaben |
+| Strategies | `strategies.md` | Ansätze und Methoden |
+| Ideas | `ideas.md` | Konzepte und Brainstorms |
+| Models | `models.md` | Mentale Modelle und Frameworks |
+| Narratives | `narratives.md` | Persönliche Geschichte und Kontext |
+| Learnings | `learnings.md` | Erkenntnisse und Gelerntes |
+
+## So funktioniert es
+
+Nicht alle Dimensionen sind für jede Nachricht relevant. TELOS nutzt **keyword-basiertes Relevanz-Scoring**:
+
+1. Deine Nachricht wird auf bedeutsame Keywords analysiert
+2. Jede Dimension wird anhand der Keyword-Übereinstimmung bewertet
+3. Die relevantesten Dimensionen werden geladen, bis das 1.000-Token-Budget voll ist
+4. Wenn nichts matcht, werden `mission.md` + `goals.md` als Fallback geladen
+
+Das bedeutet: Wenn du über deine Projekte sprichst, lädt PAIONE deinen Projektkontext. Bei Herausforderungen lädt es deine Challenges. Immer innerhalb des Budgets.
+
+## TELOS-Dateien bearbeiten
+
+Deine TELOS-Dateien liegen in `USER/groups/telos/`. Bearbeite sie direkt:
+
+```
+USER/groups/telos/
+├── mission.md
+├── goals.md
+├── beliefs.md
+├── challenges.md
+├── projects.md
+├── strategies.md
+├── ideas.md
+├── models.md
+├── narratives.md
+└── learnings.md
+```
+
+**Tipps:**
+- Schreibe in natürlicher Sprache, nicht nur Stichpunkte — Keywords werden automatisch extrahiert
+- Sei spezifisch: "PAIONE bis Juni 2026 launchen" ist besser als "Produkt starten"
+- Aktualisiere regelmäßig — veraltete TELOS-Daten führen zu veraltetem Kontext
+- Jede Datei sollte unter 200 Token bleiben für optimale Budget-Nutzung
+
+## TELOS vs Persona
+
+| | Persona | TELOS |
+|--|---------|-------|
+| **Definiert** | Wie PAIONE kommuniziert | Wer DU bist |
+| **Scope** | Pro Channel-Gruppe | Global (eine Identität) |
+| **Dateien** | 5 (identity, rules, skills, preferences, pinned) | 10 Dimensionen |
+| **Budget** | 1.500 Token | 1.000 Token |
+| **Geladen** | Immer, alle Dateien | Relevanz-bewertet pro Nachricht |

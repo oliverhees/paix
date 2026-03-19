@@ -19,3 +19,6 @@ coverage/
 playwright-report/
 test-results/
 *.pyc
+DATA/
+USER/
+!USER/.env.example

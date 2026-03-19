@@ -1,0 +1,94 @@
+# Configuration
+
+PAIONE is configured through environment variables, persona files, and the Settings UI.
+
+## Environment Variables
+
+Edit `USER/.env` to configure your instance:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ANTHROPIC_API_KEY` | Yes | -- | Your Anthropic API key |
+| `OPENAI_API_KEY` | No | -- | OpenAI API key (for additional models) |
+| `GOOGLE_AI_API_KEY` | No | -- | Google AI API key |
+| `BRAVE_SEARCH_API_KEY` | No | -- | Brave Search API key |
+| `TELEGRAM_BOT_TOKEN` | No | -- | Telegram bot integration |
+| `PORT` | No | 3000 | Web UI port |
+| `LOG_LEVEL` | No | info | Log verbosity |
+
+API keys can also be managed in **Settings > Integrations** in the web UI. Keys stored in the database take precedence over `.env` values.
+
+See `.env.example` for the complete list.
+
+## Persona Files
+
+Your persona defines how PAIONE communicates. It consists of 5 Markdown files:
+
+| File | Purpose |
+|------|---------|
+| `personality.md` | Character traits and communication style |
+| `about_user.md` | What PAIONE knows about you |
+| `communication_style.md` | Tone, language preferences, formatting |
+| `rules.md` | Behavioral guidelines and constraints |
+| `pinned.md` | Always-included context |
+
+### Editing Persona Files
+
+You have two options:
+
+1. **Web UI** -- Go to **Settings > Persona** and edit each file inline
+2. **File System** -- Edit files directly in `USER/persona/`
+
+Each file shares a proportional budget from the total 1,500-token persona allocation (~300 tokens per file).
+
+### Presets
+
+The Settings page offers personality presets that fill in sensible defaults:
+
+- **Professional** -- Formal, precise, business-oriented
+- **Friendly** -- Warm, casual, approachable
+- **Technical** -- Detail-oriented, code-aware, systematic
+- **Creative** -- Imaginative, playful, unconventional
+
+## API Keys (Integrations)
+
+PAIONE supports multiple LLM providers. Manage your API keys in **Settings > Integrations**:
+
+| Provider | Key Format | What It Enables |
+|----------|-----------|----------------|
+| **Anthropic** | `sk-ant-...` | Claude models (primary) |
+| **OpenAI** | `sk-...` | GPT models (fallback/alternative) |
+| **Google** | `AI...` | Gemini models |
+
+Keys are stored encrypted in the database. The Settings UI shows only a hint (last 4 characters) for security.
+
+## Local Storage
+
+PAIONE stores files locally instead of using cloud storage:
+
+```
+DATA/storage/
+  briefings/      --> Generated briefings
+  articles/       --> Processed articles
+  exports/        --> Data exports
+  uploads/        --> User uploads
+```
+
+Skills can read and write files via the `storage_read` and `storage_write` tools. The storage path is configured via `STORAGE_PATH` (defaults to `DATA/storage/` in Docker).
+
+## Token Budget
+
+Every message to the AI includes a carefully budgeted system prompt:
+
+```
+Temporal Context    -->      50 tokens  (current date/time)
+Persona Files       -->   1,500 tokens  (your 5 persona files)
+TELOS Snapshot      -->   1,000 tokens  (relevant identity dimensions)
+Graphiti Retrieval  -->   3,000 tokens  (semantic memory search)
+Working Space       -->  20,000 tokens  (tools + response)
+Conversation        -->     rest        (~174,450 tokens)
+-----------------------------------------------------
+Fixed overhead:        5,550 tokens   (constant per message)
+```
+
+This budget system ensures consistent performance regardless of how long you've been using PAIONE. Memory scales through Graphiti (external knowledge graph), not through ever-growing prompts.

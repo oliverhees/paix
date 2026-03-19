@@ -99,7 +99,7 @@ class GraphitiService:
             driver = FalkorDriver(
                 host=settings.falkordb_host,
                 port=settings.falkordb_port,
-                database="paix_knowledge",
+                database="paione_knowledge",
             )
 
             # Anthropic for NLP / entity extraction
@@ -192,7 +192,7 @@ class GraphitiService:
 
         # Build episode name
         name = f"chat-{session_id}" if session_id else "chat-episode"
-        source_desc = "PAI-X Chat"
+        source_desc = "PAIONE Chat"
         if skill_used:
             source_desc += f" (Skill: {skill_used})"
 

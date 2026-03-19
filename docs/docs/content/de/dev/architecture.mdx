@@ -1,0 +1,164 @@
+# Architektur
+
+Wie PAIONE unter der Haube funktioniert.
+
+## Systemueberblick
+
+PAIONE ist eine Full-Stack-Anwendung mit Next.js Frontend, FastAPI Backend, PostgreSQL-Datenbank, Redis Cache und optionalem Graphiti-Wissensgraph.
+
+```
++-------------------------------------------------+
+|  Browser (Next.js SPA)                          |
+|  HTTP / WebSocket                               |
++-------------------------------------------------+
+           |
++-------------------------------------------------+
+|  FastAPI Backend (Python)                       |
+|  +-- Chat Engine (Streaming, Tool Use)          |
+|  +-- Skill Service (Ausfuehrung, Parsing)       |
+|  +-- Routine Service (CRUD, Scheduling)         |
+|  +-- Persona Loader (5 Markdown-Dateien)        |
+|  +-- TELOS Scorer (Keyword-Relevanz)            |
+|  +-- Token Budget (harte Limits pro Schicht)    |
+|  +-- MCP Client (Tool Discovery, Ausfuehrung)  |
+|  +-- LLM Service (Anthropic, Multi-Provider)    |
+|  +-- Local Storage Service                      |
+|  +-- Graphiti Service (Wissensgraph)            |
++-------------------------------------------------+
+           |
++-------------------------------------------------+
+|  PostgreSQL     |  Redis        |  FalkorDB     |
+|  (alle Daten)   |  (Cache,      |  (Wissens-    |
+|                 |   Celery)     |   graph)      |
++-------------------------------------------------+
+           |
++-------------------------------------------------+
+|  Celery Worker + Beat                           |
+|  (Routine-Ausfuehrung, geplante Tasks)          |
++-------------------------------------------------+
+```
+
+## Token-Budget-System
+
+Jeder KI-Aufruf enthaelt einen sorgfaeltig budgetierten Systemprompt:
+
+```
+Temporaler Kontext  -->      50 Token  (immer geladen)
+Persona-Dateien     -->   1.500 Token  (immer geladen)
+TELOS-Snapshot      -->   1.000 Token  (keyword-bewertet pro Nachricht)
+Graphiti-Abruf      -->   3.000 Token  (semantisch abgerufen)
+Arbeitsbereich      -->  20.000 Token  (Agent-Tools + Antwort)
+Konversation        -->     Rest       (~174.450 Token)
+-----------------------------------------------------
+Fester Overhead:       5.550 Token   (konstant, unabhaengig von Nutzungsdauer)
+```
+
+## Persona Loader
+
+Liest 5 Persona-Markdown-Dateien und baut sie zu einem Systemprompt-Abschnitt zusammen:
+
+| Datei | Zweck | Budget |
+|-------|-------|--------|
+| `personality.md` | Charaktereigenschaften | ~300 Token |
+| `about_user.md` | Wissen ueber den User | ~300 Token |
+| `communication_style.md` | Tonfall und Format | ~300 Token |
+| `rules.md` | Verhaltensregeln | ~300 Token |
+| `pinned.md` | Immer geladener Kontext | ~300 Token |
+
+Dateien werden aus `USER/persona/` geladen, mit Defaults aus `SYSTEM/defaults/persona/`.
+
+## TELOS Keyword Scoring
+
+TELOS nutzt keyword-basiertes Relevanz-Scoring um auszuwaehlen, welche Identitaetsdimensionen einbezogen werden:
+
+1. Signifikante Keywords aus der Benutzernachricht extrahieren
+2. Jede der 10 TELOS-Dimensionen anhand der Keyword-Uebereinstimmung bewerten
+3. Die hoechstbewerteten Dimensionen laden, bis das 1.000-Token-Budget voll ist
+4. Fallback: `mission.md` + `goals.md` wenn nichts matcht
+
+Das bedeutet: Wenn du ueber Projekte sprichst, laedt PAIONE deinen Projektkontext. Bei Herausforderungen laedt es deine Challenges -- immer innerhalb des Budgets.
+
+## Lokaler Storage
+
+PAIONE nutzt lokalen Dateisystem-Storage statt S3:
+
+```
+DATA/storage/
+  briefings/      --> Skill-generierte Briefings
+  articles/       --> Verarbeitete Artikel
+  exports/        --> Datenexporte
+  uploads/        --> Benutzer-Uploads
+```
+
+Der `local_storage_service.py` bietet Read/Write/List/Delete-Operationen. Skills greifen ueber `storage_read` und `storage_write` Tools auf den Storage zu.
+
+## Single-User-Architektur
+
+PAIONE ist als Single-User Self-Hosted-Anwendung konzipiert:
+
+- Ein Benutzerkonto pro Instanz (erstellt beim Setup)
+- JWT-basierte Authentifizierung
+- Alle Daten gehoeren einem Benutzer
+- Kein Multi-Tenancy, keine geteilten Ressourcen
+- Volle Privatsphaere: alles laeuft auf deiner Hardware
+
+## Datenfluss (Chat)
+
+```
+Benutzernachricht --> FastAPI Endpoint
+  --> Chat Engine
+    --> Kontext-Zusammenbau:
+        1. Temporaler Kontext (Datum, Uhrzeit, Wochentag)
+        2. Persona-Dateien (5 Markdown-Dateien)
+        3. TELOS-Identitaet (keyword-bewertete Dimensionen)
+        4. Graphiti-Wissen (semantische Suche)
+    --> Tool-Aufloesung (MCP Server + API Werkzeuge)
+    --> LLM Service (Anthropic API-Aufruf, Streaming)
+    --> In PostgreSQL speichern (Nachrichten, Token, Kosten)
+    --> Antwort-Stream --> Benutzer
+    --> Nachbearbeitung:
+        --> Graphiti-Extraktion (Wissensgraph-Update)
+```
+
+## Datenfluss (Routine-Ausfuehrung)
+
+```
+Celery Beat (Cron-Trigger)
+  --> Routine Executor Service
+    --> Bedingungspruefung (optional, nutzt Haiku)
+    --> Prompt aufloesen (Variablen-Ersetzung)
+    --> LLM Service Call (mit Skill-Tools falls konfiguriert)
+    --> Laufergebnis + Artefakte speichern
+    --> Benachrichtigung erstellen
+    --> Chains ausloesen (falls konfiguriert)
+    --> Webhooks dispatchen (falls konfiguriert)
+    --> Push-Notification senden (falls abonniert)
+```
+
+## Model-Routing
+
+PAIONE unterstuetzt mehrere LLM-Provider ueber einen einheitlichen Service:
+
+| Provider | Modelle | Konfiguration |
+|----------|---------|---------------|
+| Anthropic | Haiku, Sonnet, Opus | Primaer, API Key erforderlich |
+| OpenAI | GPT-4, GPT-3.5 | Optional, via API Key |
+| Google | Gemini | Optional, via API Key |
+
+API Keys werden in **Settings > Integrations** oder via `USER/.env` verwaltet.
+
+## Deployment
+
+Sieben Docker-Container orchestriert via `docker-compose`:
+
+| Container | Technologie | Aufgabe | Port |
+|-----------|------------|---------|------|
+| paione-web | Next.js | Frontend | 3000 |
+| paione-api | FastAPI | Backend API | 8000 |
+| postgres | PostgreSQL 16 | Primaere Datenbank | intern |
+| redis | Redis 7 | Cache + Celery Broker | intern |
+| falkordb | FalkorDB | Wissensgraph | intern |
+| celery-worker | Python | Hintergrund-Ausfuehrung | -- |
+| celery-beat | Python | Zeitgesteuertes Triggering | -- |
+
+Graphiti/FalkorDB sind optional -- PAIONE funktioniert auch ohne, nur ohne semantisches Langzeitgedaechtnis.
