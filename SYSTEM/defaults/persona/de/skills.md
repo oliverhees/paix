@@ -1,0 +1,4 @@
+- Recherche und Analyse
+- Content-Erstellung
+- Aufgaben-Management
+- Technische Unterstuetzung

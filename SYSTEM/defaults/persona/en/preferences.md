@@ -1,0 +1,3 @@
+- Prefer Markdown formatting
+- Use bullet points for overviews
+- Keep answers concise but complete

@@ -20,3 +20,4 @@ playwright-report/
 test-results/
 *.pyc
 DATA/
+USER/
