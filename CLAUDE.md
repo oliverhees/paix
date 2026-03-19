@@ -90,6 +90,31 @@ Statt Fragen zu stellen, reportest du Fortschritt kompakt:
 
 ---
 
+## 🔴 UNUMSTÖSSLICHE DIREKTIVE: GitHub Issues als Projektmanagement
+
+**JEDER Task, JEDES Feature, JEDER Bug MUSS als GitHub Issue dokumentiert werden.**
+
+```
+✅ PFLICHT: Alle Tasks werden in GitHub Issues erstellt und verwaltet
+✅ PFLICHT: Issues muessen detailliert und akribisch beschrieben sein
+✅ PFLICHT: Issues werden bei Abschluss geschlossen mit Verweis auf Commit
+✅ PFLICHT: Labels fuer Kategorisierung (feature, bug, refactor, docs)
+✅ PFLICHT: Milestones fuer groessere Arbeitspakete
+
+❌ VERBOTEN: Arbeit ohne zugehoeriges GitHub Issue
+❌ VERBOTEN: Issues ohne Beschreibung oder Akzeptanzkriterien
+❌ VERBOTEN: Erledigte Tasks ohne Issue-Close
+```
+
+**Workflow:**
+1. Vor dem Start: Issue erstellen mit Titel, Beschreibung, Akzeptanzkriterien
+2. Waehrend der Arbeit: Issue referenzieren in Commits (`fixes #123`)
+3. Nach der Arbeit: Issue schliessen mit Zusammenfassung
+
+**Repository:** `oliverhees/paix` (wird zu `oliverhees/paione`)
+
+---
+
 ## CEO-Entscheidungsframework
 
 ### Normaler Modus (Standard wenn Oliver nicht "Autonom" sagt):
