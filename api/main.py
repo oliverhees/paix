@@ -10,7 +10,7 @@ from models.database import init_db, close_db
 from routers import health, chat, calendar, telos, memory, models
 from routers import auth, skills, notifications, internal, integrations, reminders, werkzeuge, api_werkzeuge, routines, telegram
 from routers import agent_state, storage
-from routers import claude_oauth, marketplace
+from routers import marketplace
 from services.graphiti_service import graphiti_service
 from services.llm_service import llm_service
 from services.scheduler_service import start_scheduler, stop_scheduler, scheduler
@@ -71,10 +71,10 @@ app.add_middleware(
 # Health (no auth required)
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 
-# Auth (no auth required for register/login/refresh)
+# Auth (single-user — /auth/me and /auth/me PUT only)
 app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 
-# Protected routes (require JWT via get_current_user)
+# All routes (single-user, no auth required)
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
 app.include_router(models.router, prefix="/api/v1", tags=["models"])
 app.include_router(calendar.router, prefix="/api/v1", tags=["calendar"])
@@ -96,9 +96,6 @@ app.include_router(marketplace.router, prefix="/api/v1", tags=["marketplace"])
 
 # Telegram webhook (public — Telegram verifies via bot token)
 app.include_router(telegram.router, prefix="/api/v1", tags=["telegram"])
-
-# Claude OAuth (PKCE flow for subscription token acquisition)
-app.include_router(claude_oauth.router, prefix="/api/v1", tags=["claude-oauth"])
 
 # Internal routes (protected by X-Internal-Key header)
 app.include_router(internal.router, prefix="/api/v1", tags=["internal"])

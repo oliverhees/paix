@@ -1,23 +1,13 @@
-"""Auth Endpoints — registration, login, token refresh, logout."""
+"""Auth Endpoints — simplified for single-user mode (no login required)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import delete, select
+from fastapi import APIRouter, Depends, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.dependencies import get_current_user
-from auth.jwt import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-    get_token_expiry_seconds,
-)
-from auth.password import hash_password, verify_password
-from config import settings
+from auth.dependencies import get_default_user
 from models.database import get_db
-from models.auth_session import AuthSession
 from models.user import User
 
 router = APIRouter()
@@ -33,42 +23,8 @@ def _mask_api_key(key: str | None) -> str | None:
 
 
 # ──────────────────────────────────────────────
-# Request / Response Schemas
+# Response Schemas
 # ──────────────────────────────────────────────
-
-
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(..., min_length=8, max_length=128)
-    name: str = Field(..., min_length=1, max_length=255)
-
-
-class RegisterResponse(BaseModel):
-    id: str
-    email: str
-    name: str
-    created_at: datetime | None = None
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
-
-
-class RefreshResponse(BaseModel):
-    access_token: str
-    expires_in: int
 
 
 class UserMeResponse(BaseModel):
@@ -98,153 +54,9 @@ class UserMeResponse(BaseModel):
 # ──────────────────────────────────────────────
 
 
-@router.post(
-    "/auth/register",
-    response_model=RegisterResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def register(
-    request: RegisterRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Register a new user."""
-    # Check if email already taken
-    existing = await db.execute(
-        select(User).where(User.email == request.email)
-    )
-    if existing.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email already registered",
-        )
-
-    user = User(
-        email=request.email,
-        password_hash=hash_password(request.password),
-        name=request.name,
-    )
-    db.add(user)
-    await db.flush()
-
-    return RegisterResponse(
-        id=str(user.id),
-        email=user.email,
-        name=user.name,
-        created_at=user.created_at,
-    )
-
-
-@router.post("/auth/login", response_model=TokenResponse)
-async def login(
-    request: LoginRequest,
-    req: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """Login with email and password, returns JWT tokens."""
-    result = await db.execute(
-        select(User).where(User.email == request.email)
-    )
-    user = result.scalar_one_or_none()
-
-    if user is None or not verify_password(request.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is deactivated",
-        )
-
-    access_token = create_access_token(str(user.id))
-    refresh_token = create_refresh_token(str(user.id))
-
-    # Store refresh token in DB
-    auth_session = AuthSession(
-        user_id=user.id,
-        refresh_token=refresh_token,
-        user_agent=req.headers.get("user-agent"),
-        ip_address=req.client.host if req.client else None,
-        expires_at=datetime.now(timezone.utc)
-        + timedelta(days=settings.jwt_refresh_token_expire_days),
-    )
-    db.add(auth_session)
-    await db.flush()
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        expires_in=get_token_expiry_seconds(),
-    )
-
-
-@router.post("/auth/refresh", response_model=RefreshResponse)
-async def refresh(
-    request: RefreshRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Refresh an access token using a valid refresh token."""
-    try:
-        payload = decode_token(request.refresh_token)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired refresh token",
-        )
-
-    if payload.get("type") != "refresh":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token is not a refresh token",
-        )
-
-    # Verify refresh token exists in DB (not revoked)
-    result = await db.execute(
-        select(AuthSession).where(
-            AuthSession.refresh_token == request.refresh_token
-        )
-    )
-    session = result.scalar_one_or_none()
-
-    if session is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token has been revoked",
-        )
-
-    if session.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token has expired",
-        )
-
-    user_id = payload["sub"]
-    new_access_token = create_access_token(user_id)
-
-    return RefreshResponse(
-        access_token=new_access_token,
-        expires_in=get_token_expiry_seconds(),
-    )
-
-
-@router.post("/auth/logout")
-async def logout(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Logout — invalidate all refresh tokens for the user."""
-    await db.execute(
-        delete(AuthSession).where(AuthSession.user_id == user.id)
-    )
-    await db.flush()
-    return {"message": "Logged out successfully"}
-
-
 @router.get("/auth/me", response_model=UserMeResponse)
-async def get_me(user: User = Depends(get_current_user)):
-    """Get the currently authenticated user."""
+async def get_me(user: User = Depends(get_default_user)):
+    """Get the single PAIONE user."""
     return UserMeResponse(
         id=str(user.id),
         email=user.email,
@@ -290,10 +102,10 @@ class UpdateMeRequest(BaseModel):
 @router.put("/auth/me", response_model=UserMeResponse)
 async def update_me(
     request: UpdateMeRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_default_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update the currently authenticated user's profile."""
+    """Update the PAIONE user's profile."""
     if request.name is not None:
         user.name = request.name
     if request.avatar_url is not None:
@@ -311,7 +123,6 @@ async def update_me(
     if request.persona_communication is not None:
         user.persona_communication = request.persona_communication
     if request.brave_search_api_key is not None:
-        # Allow clearing by sending empty string
         user.brave_search_api_key = request.brave_search_api_key or None
     if request.s3_endpoint_url is not None:
         user.s3_endpoint_url = request.s3_endpoint_url or None

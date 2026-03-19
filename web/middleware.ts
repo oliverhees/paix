@@ -1,21 +1,12 @@
 /**
- * Next.js Middleware — lightweight route protection.
+ * Next.js Middleware — single-user mode, no auth checks.
  *
- * This middleware checks for the presence of a token cookie/header
- * as a first line of defense. The actual token validation happens
- * client-side via the AuthGuard component.
- *
- * Note: Since we use localStorage for tokens (not httpOnly cookies),
- * this middleware cannot validate the token server-side. It serves as
- * a UX optimization to prevent the flash of dashboard content before
- * the client-side AuthGuard kicks in.
+ * Redirects /login and /register to / since there is no login.
+ * Sets cache headers to prevent stale page caching.
  */
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-/** Routes that do not require authentication. */
-const PUBLIC_PATHS = ["/login", "/register", "/forgot-password"];
 
 /** Static/API paths that should be ignored by middleware. */
 const IGNORED_PREFIXES = [
@@ -27,6 +18,9 @@ const IGNORED_PREFIXES = [
   "/icons/",
 ];
 
+/** Old auth routes that should redirect to home. */
+const AUTH_ROUTES = ["/login", "/register", "/forgot-password"];
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -35,15 +29,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow public routes
-  if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
-    return NextResponse.next();
+  // Redirect old auth routes to dashboard
+  if (AUTH_ROUTES.some((route) => pathname.startsWith(route))) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // For all other routes, let them through — AuthGuard handles the redirect
-  // client-side after checking localStorage tokens.
+  // Set cache headers
   const response = NextResponse.next();
-  // Prevent any browser caching of HTML/RSC responses to avoid white page on F5
   response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   response.headers.set('Pragma', 'no-cache');
   response.headers.set('Expires', '0');
@@ -52,12 +44,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };

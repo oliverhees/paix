@@ -81,12 +81,8 @@ class StorageService {
   }
 
   async previewFile(path: string): Promise<string> {
-    const token = api.getAccessToken();
     const response = await fetch(
       `/api/v1/storage/preview?path=${encodeURIComponent(path)}`,
-      {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }
     );
     if (!response.ok) {
       const err = await response.json().catch(() => ({ detail: "Vorschau fehlgeschlagen" }));
@@ -106,10 +102,8 @@ class StorageService {
     formData.append("file", file);
     formData.append("path", path);
 
-    const token = api.getAccessToken();
     const response = await fetch("/api/v1/storage/upload", {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,
     });
 

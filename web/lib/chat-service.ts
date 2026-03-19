@@ -243,14 +243,7 @@ class ChatWebSocket {
 
   private connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Prefer explicitly set token, then fall back to API client's token
-      const token = this.token || api.getAccessToken();
-      if (!token) {
-        reject(new Error("No auth token available for WebSocket"));
-        return;
-      }
-
-      const wsUrl = `${getWsUrl()}/api/v1/chat/stream?token=${encodeURIComponent(token)}`;
+      const wsUrl = `${getWsUrl()}/api/v1/chat/stream`;
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
@@ -463,18 +456,6 @@ class ChatWebSocket {
 
 class ChatService {
   private wsManager = new ChatWebSocket();
-
-  /**
-   * Set the auth token for both REST and WebSocket communication.
-   */
-  setToken(token: string | null) {
-    if (token) {
-      api.setTokens(token);
-    } else {
-      api.clearTokens();
-    }
-    this.wsManager.setToken(token);
-  }
 
   /**
    * Set WebSocket streaming callbacks.

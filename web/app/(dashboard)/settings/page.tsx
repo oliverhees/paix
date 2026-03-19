@@ -1404,19 +1404,7 @@ function APIKeysSection() {
                 <p className="text-muted-foreground">Token generieren mit Claude Code CLI:</p>
                 <code className="block bg-background rounded px-2 py-1 font-mono text-xs">claude setup-token</code>
                 <p className="text-muted-foreground">Token beginnt mit <code className="font-mono">sk-ant-oat01-</code></p>
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={openClaudeOAuth}
-                  disabled={connectingClaude}
-                  className="w-full gap-2 mt-2"
-                >
-                  {connectingClaude ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Verbinde...</>
-                  ) : (
-                    <><Zap className="h-3.5 w-3.5" /> Mit Anthropic verbinden</>
-                  )}
-                </Button>
+                {/* OAuth button removed — single-user mode, paste token manually */}
               </div>
             )}
 

@@ -8,8 +8,7 @@ import { AuthGuard } from "@/components/auth-guard";
 
 /**
  * Dashboard layout - SidebarProvider + SidebarInset pattern from shadcn/ui.
- * All authenticated pages use this layout.
- * AuthGuard ensures users are redirected to /login if not authenticated.
+ * AuthGuard initializes user profile before rendering.
  */
 export default async function DashboardLayout({
   children,
