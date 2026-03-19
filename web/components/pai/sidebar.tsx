@@ -32,6 +32,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useActivityStatus } from "@/components/pai/activity-feed";
+import { cn } from "@/lib/utils";
 
 const navItems = [
   {
@@ -86,9 +88,13 @@ const navItems = [
   },
 ];
 
+/** Sidebar items that show a running indicator */
+const RUNNING_BADGE_ITEMS = new Set(["/skills", "/routines"]);
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { setOpenMobile, isMobile } = useSidebar();
+  const { hasRunning } = useActivityStatus(10000);
 
   // Close mobile sidebar on navigation
   useEffect(() => {
@@ -139,7 +145,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       tooltip={item.title}
                     >
                       <Link href={item.href}>
-                        <item.icon />
+                        <div className="relative">
+                          <item.icon />
+                          {hasRunning && RUNNING_BADGE_ITEMS.has(item.href) && (
+                            <span
+                              className={cn(
+                                "absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-500",
+                                "animate-pulse ring-2 ring-sidebar"
+                              )}
+                            />
+                          )}
+                        </div>
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>

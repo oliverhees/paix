@@ -889,6 +889,11 @@ class SkillService:
             completed_at=datetime.now(timezone.utc),
             metadata_json={
                 "parameters": parameters or {},
+                "tool_calls": [
+                    {"name": tc.get("name", ""), "type": tc.get("type", "")}
+                    for tc in (tool_calls or [])
+                    if isinstance(tc, dict)
+                ],
             },
         )
         db.add(execution)
