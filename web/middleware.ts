@@ -21,11 +21,19 @@ const IGNORED_PREFIXES = [
 /** Old auth routes that should redirect to home. */
 const AUTH_ROUTES = ["/login", "/register", "/forgot-password"];
 
+/** Routes that are always publicly accessible (no auth/redirect checks). */
+const PUBLIC_ROUTES = ["/setup"];
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip middleware for static assets and API routes
   if (IGNORED_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return NextResponse.next();
+  }
+
+  // Allow public routes through without any checks
+  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
     return NextResponse.next();
   }
 

@@ -1,27 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 /**
  * AuthGuard — simplified for single-user mode.
  *
- * Initializes user profile on mount, then renders children.
- * No login redirect — always shows the app.
+ * Checks setup status first. If no user exists, redirects to /setup.
+ * Otherwise initializes user profile on mount, then renders children.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isInitialized, initialize } = useAuthStore();
   const [isReady, setIsReady] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    initialize();
-  }, [initialize]);
+    async function checkSetup() {
+      try {
+        const res = await fetch("/api/v1/auth/setup-status");
+        const data = await res.json();
+        if (!data.setup_complete) {
+          router.replace("/setup");
+          return;
+        }
+      } catch {
+        // If check fails, continue to app (backend may be starting)
+      }
+      setCheckingSetup(false);
+      initialize();
+    }
+    checkSetup();
+  }, [initialize, router]);
 
   useEffect(() => {
-    if (isInitialized && !isLoading) {
+    if (!checkingSetup && isInitialized && !isLoading) {
       setIsReady(true);
     }
-  }, [isInitialized, isLoading]);
+  }, [checkingSetup, isInitialized, isLoading]);
 
   if (!isReady) {
     return (

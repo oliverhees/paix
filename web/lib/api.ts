@@ -136,6 +136,20 @@ class ApiClient {
     return this.get<UserMeResponse>("/auth/me");
   }
 
+  async getSetupStatus(): Promise<{ setup_complete: boolean }> {
+    return this.get<{ setup_complete: boolean }>("/auth/setup-status");
+  }
+
+  async setup(data: {
+    name: string;
+    email: string;
+    password: string;
+    anthropic_api_key?: string;
+    locale?: string;
+  }): Promise<{ status: string; user_id: string }> {
+    return this.post<{ status: string; user_id: string }>("/auth/setup", data);
+  }
+
   // ─── Domain-Specific Methods ───
 
   /** Health check. */

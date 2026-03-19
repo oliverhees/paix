@@ -2,8 +2,9 @@
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth.dependencies import get_default_user
@@ -11,6 +12,66 @@ from models.database import get_db
 from models.user import User
 
 router = APIRouter()
+
+
+# ──────────────────────────────────────────────
+# Setup (first-time configuration)
+# ──────────────────────────────────────────────
+
+
+class SetupRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    anthropic_api_key: str = ""
+    locale: str = "de"
+
+
+@router.get("/auth/setup-status")
+async def setup_status(db: AsyncSession = Depends(get_db)):
+    """Check if initial setup has been completed."""
+    result = await db.execute(select(func.count(User.id)))
+    user_count = result.scalar() or 0
+    return {"setup_complete": user_count > 0}
+
+
+@router.post("/auth/setup")
+async def initial_setup(
+    request: SetupRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """First-time setup — create the single user account."""
+    # Check if already set up
+    existing = await db.execute(select(func.count(User.id)))
+    if (existing.scalar() or 0) > 0:
+        raise HTTPException(409, "Setup already completed")
+
+    # Create user
+    from auth.password import hash_password
+
+    user = User(
+        email=request.email,
+        name=request.name,
+        password_hash=hash_password(request.password),
+        language=request.locale,
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+
+    # Save API key if provided
+    if request.anthropic_api_key:
+        from models.integration import IntegrationToken
+
+        token = IntegrationToken(
+            user_id=user.id,
+            provider="anthropic",
+            access_token=request.anthropic_api_key,
+        )
+        db.add(token)
+
+    await db.commit()
+    return {"status": "ok", "user_id": str(user.id)}
 
 
 def _mask_api_key(key: str | None) -> str | None:
