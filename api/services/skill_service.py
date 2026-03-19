@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.skill import SkillConfig, SkillExecution
 from services.llm_service import llm_service, get_user_anthropic_key
 from services.skill_parser import parse_skill_md, build_skill_md
+from services.token_budget import truncate_to_budget
 
 
 # ──────────────────────────────────────────────
@@ -827,6 +828,9 @@ class SkillService:
         skill_context = await self._load_skill_directory(db, user_id, skill_id)
         if skill_context:
             system_prompt += "\n\n" + skill_context
+
+        # Apply persona token budget to skill system prompt
+        system_prompt = truncate_to_budget(system_prompt, "persona")
 
         user_message = self._build_user_message(definition, user_input, parameters)
 

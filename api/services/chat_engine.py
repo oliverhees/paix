@@ -24,6 +24,7 @@ from services.skill_service import skill_service
 from services.graphiti_service import graphiti_service
 from services.docker_executor_service import docker_executor
 from services.channel_adapters.base import ChannelAdapter
+from services.token_budget import truncate_to_budget, get_budget_report
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
@@ -159,7 +160,9 @@ class ChatEngine:
         except Exception:
             date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-        date_prefix = f"Aktuelles Datum und Uhrzeit: {date_str}\n\n"
+        date_prefix = truncate_to_budget(
+            f"Aktuelles Datum und Uhrzeit: {date_str}", "temporal"
+        ) + "\n\n"
 
         # Structured persona sections
         sections = []
@@ -190,6 +193,7 @@ class ChatEngine:
             "Nutze es NICHT fuer kurze Code-Snippets oder einfache Textantworten. "
             "Nutze es fuer: ganze Dateien, laengere Dokumente, HTML-Previews, Diagramme."
         )
+        base_persona = truncate_to_budget(base_persona, "persona")
 
         # TELOS context from PostgreSQL
         telos_text = ""
@@ -222,6 +226,8 @@ class ChatEngine:
             except Exception:
                 pass
 
+        telos_text = truncate_to_budget(telos_text, "telos")
+
         # Memory context from semantic search
         memory_text = ""
         try:
@@ -237,6 +243,8 @@ class ChatEngine:
                     memory_text = "\n\nRelevanter Kontext aus dem Gedaechtnis:\n" + "\n".join(snippets)
         except Exception:
             pass
+
+        memory_text = truncate_to_budget(memory_text, "graphiti")
 
         # Agent state context (last conversation summary + user preferences)
         agent_state_text = ""
@@ -268,6 +276,15 @@ class ChatEngine:
                     )
             except Exception:
                 pass
+
+        # Log token budget usage
+        budget_report = get_budget_report({
+            "temporal": date_prefix,
+            "persona": base_persona,
+            "telos": telos_text,
+            "graphiti": memory_text,
+        })
+        logger.info("Token budget usage: %s", budget_report)
 
         return date_prefix + base_persona + telos_text + memory_text + agent_state_text
 
