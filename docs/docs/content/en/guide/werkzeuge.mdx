@@ -1,0 +1,189 @@
+# Werkzeuge (Tools)
+
+Werkzeuge extend PAIONE with external capabilities. Connect MCP servers or REST APIs, and their tools become available in chat and skills.
+
+## Two Types of Werkzeuge
+
+| Type | Protocol | Use Case |
+|------|----------|----------|
+| **MCP Server** | Model Context Protocol | Rich tool integration (GitHub, Linear, file systems) |
+| **REST API** | HTTP REST | Any API with endpoints (weather, CMS, custom services) |
+
+## MCP Server
+
+The [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) is an open standard for connecting AI models to external tools. PAIONE acts as an MCP client.
+
+### Connecting an MCP Server
+
+1. Go to **Werkzeuge** in the sidebar
+2. Click **Add MCP Server**
+3. Fill in:
+
+| Field | Description |
+|-------|-------------|
+| Name | Display name (e.g., "github") |
+| Description | What this server provides |
+| Transport Type | `stdio`, `sse`, or `streamable_http` |
+| Config | Connection details (see below) |
+
+### Transport Types
+
+**stdio** -- Local process, communicates via stdin/stdout:
+```json
+{
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-github"],
+  "env": {
+    "GITHUB_TOKEN": "ghp_..."
+  }
+}
+```
+
+**sse** -- Remote server, Server-Sent Events:
+```json
+{
+  "url": "http://localhost:3001/sse"
+}
+```
+
+**streamable_http** -- Remote server, HTTP streaming:
+```json
+{
+  "url": "https://mcp.example.com/stream"
+}
+```
+
+### Tool Discovery
+
+After connecting, PAIONE auto-discovers available tools from the MCP server. Each tool gets a namespaced reference:
+
+```
+mcp__{server_name}__{tool_name}
+```
+
+Example: `mcp__github__create_issue`
+
+You can also manually trigger discovery via the **Discover** button.
+
+### Testing Connection
+
+Click **Test** on any MCP server to verify connectivity without persisting changes.
+
+## REST API Werkzeuge
+
+Register any REST API as a tool source. Each endpoint becomes a tool in the chat.
+
+### Adding a REST API
+
+1. Go to **Werkzeuge**
+2. Click **Add API**
+3. Fill in:
+
+| Field | Description |
+|-------|-------------|
+| Name | Display name (e.g., "weather-api") |
+| Base URL | `https://api.example.com` |
+| Auth | Authentication method (see below) |
+| Headers | Default headers for all requests |
+| Endpoints | List of endpoint definitions |
+
+### Authentication
+
+**Bearer Token:**
+```json
+{
+  "type": "bearer",
+  "token": "your-api-token"
+}
+```
+
+**Custom Header:**
+```json
+{
+  "type": "header",
+  "key": "X-API-Key",
+  "value": "your-api-key"
+}
+```
+
+### Endpoint Definitions
+
+Each endpoint becomes a tool:
+
+```json
+{
+  "name": "get_weather",
+  "description": "Get current weather for a city",
+  "method": "GET",
+  "path": "/weather",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "city": {
+        "type": "string",
+        "description": "City name"
+      }
+    },
+    "required": ["city"]
+  }
+}
+```
+
+### Testing
+
+Click **Test** on any API werkzeug to make a HEAD request to the base URL and verify connectivity.
+
+## Ghost CMS Integration
+
+PAIONE has built-in support for Ghost CMS via skills and API werkzeuge:
+
+1. Add Ghost as a REST API werkzeug with your Ghost Admin API key
+2. Use the built-in "Ghost Publish" skill to publish articles
+3. Chain skills: Content Pipeline --> Ghost Publish
+
+### Setup
+
+```json
+{
+  "name": "ghost",
+  "base_url": "https://your-blog.ghost.io/ghost/api/admin",
+  "auth": {
+    "type": "header",
+    "key": "Authorization",
+    "value": "Ghost your-admin-api-token"
+  },
+  "endpoints": [
+    {
+      "name": "create_post",
+      "description": "Create a new Ghost blog post",
+      "method": "POST",
+      "path": "/posts",
+      "parameters": {}
+    }
+  ]
+}
+```
+
+## Using Werkzeuge in Chat
+
+Once connected, tools are automatically available in chat. PAIONE selects the right tool based on your message:
+
+- "Create a GitHub issue for the login bug" --> uses `mcp__github__create_issue`
+- "What's the weather in Berlin?" --> uses `api__weather__get_weather`
+
+## Using Werkzeuge in Skills
+
+Restrict which tools a skill can access via `allowed_tools`:
+
+```json
+["mcp__github__create_issue", "mcp__github__list_repos"]
+```
+
+This prevents a skill from accidentally calling unrelated tools.
+
+## Managing Werkzeuge
+
+- **Activate/Deactivate** -- Toggle a werkzeug without deleting it
+- **Edit** -- Update connection details, endpoints, or tools
+- **Delete** -- Permanently remove a werkzeug
+- **Discover** -- Re-scan an MCP server for new tools

@@ -32,9 +32,53 @@ ANTHROPIC_API_KEY=sk-ant-your-key-here
 docker-compose up -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — the setup wizard will guide you through the initial configuration.
+This starts all services:
+
+| Service | Purpose |
+|---------|---------|
+| **paione-web** | Next.js frontend (port 3000) |
+| **paione-api** | FastAPI backend (port 8000) |
+| **postgres** | PostgreSQL database |
+| **redis** | Cache and message broker |
+| **falkordb** | Graph database for Graphiti memory |
+| **celery-worker** | Background task execution |
+| **celery-beat** | Scheduled task scheduler |
+
+## Setup Wizard
+
+Open [http://localhost:3000](http://localhost:3000). The setup wizard guides you through three steps:
+
+1. **Welcome** -- Overview of what PAIONE is
+2. **Profile** -- Create your user account (name, email, password)
+3. **AI Connection** -- Enter your Anthropic API key (optional, can be added later in Settings)
+
+After completing the wizard, you land in the chat interface.
+
+## First Steps After Setup
+
+1. **Chat** -- Send your first message and see PAIONE respond
+2. **Settings** -- Configure your [Persona](/en/configuration#persona-files) to customize how PAIONE communicates
+3. **TELOS** -- Fill in your [TELOS dimensions](/en/telos) so PAIONE knows who you are
+4. **Skills** -- Explore the built-in [Skills](/en/guide/skills) or create your own
+5. **Werkzeuge** -- Connect [MCP servers or REST APIs](/en/guide/werkzeuge) to give PAIONE tools
+6. **Workflows** -- Set up [scheduled tasks](/en/guide/workflows) to automate recurring work
+
+## Project Structure
+
+```
+paione/
+  web/       --> Next.js frontend (dashboard, chat, settings)
+  api/       --> FastAPI backend (REST API, LLM, skills, routines)
+  USER/      --> Your configuration (persona, TELOS, .env)
+  DATA/      --> Runtime data (storage, uploads -- gitignored)
+  SYSTEM/    --> System defaults (updated with releases)
+  docs/      --> This documentation portal (Nextra)
+  infra/     --> Docker and Nginx configuration
+```
 
 ## What's Next?
 
-- Configure your [Persona](/configuration#persona) — teach PAIONE who you are
-- Explore the [Architecture](/architecture) — understand how it works
+- Configure your [Persona](/en/configuration#persona-files) -- teach PAIONE how to communicate
+- Set up your [TELOS Identity](/en/telos) -- tell PAIONE who you are
+- Explore [Skills](/en/guide/skills) -- what PAIONE can do for you
+- Connect [Werkzeuge](/en/guide/werkzeuge) -- give PAIONE tools to work with

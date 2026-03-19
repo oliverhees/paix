@@ -1,0 +1,184 @@
+# Skills
+
+Skills are reusable AI capabilities. Each skill has a system prompt, optional parameters, tool access, and can be chained with other skills.
+
+## What is a Skill?
+
+A skill teaches PAIONE how to perform a specific task. Think of it as a recipe: it defines what the AI should do, which tools it can use, and what parameters it accepts.
+
+**Examples:**
+- "Calendar Briefing" -- Summarize today's calendar and suggest priorities
+- "Content Pipeline" -- Draft a blog post from a topic
+- "Ghost Publish" -- Publish an article to your Ghost CMS
+
+## Built-in Skills
+
+PAIONE ships with preset skills you can activate:
+
+| Skill | Category | What It Does |
+|-------|----------|-------------|
+| Calendar Briefing | Productivity | Daily schedule summary with recommendations |
+| Content Pipeline | Writing | Draft content from a topic or briefing |
+| Meeting Prep | Productivity | Prepare talking points and agenda |
+| Follow Up | Communication | Draft follow-up messages |
+| Idea Capture | Creativity | Structure and develop raw ideas |
+
+Activate or deactivate any preset skill from the **Skills** page.
+
+## Creating a Skill
+
+### With AI (recommended)
+
+1. Go to **Skills** in the sidebar
+2. Click **Create Skill**
+3. Describe what the skill should do in natural language
+4. PAIONE generates the SKILL.md file for you
+5. Review and adjust the generated skill
+6. Save
+
+### Manually (SKILL.md format)
+
+Skills follow the **Anthropic Skills Open Standard** -- a Markdown file with YAML frontmatter:
+
+```markdown
+---
+name: my-skill
+description: |
+  A clear description of what this skill does.
+  Used for tool routing and display.
+dependencies:
+  - ghost-publish
+---
+
+# My Skill Title
+
+Instructions for the AI when executing this skill.
+
+## Available Tools
+- **storage_read**: Read files from local storage
+- **storage_write**: Write files to local storage
+- **call_skill**: Chain to another skill
+- **create_artifact**: Display results in the chat
+
+## Workflow
+
+### Step 1: Gather Input
+Describe what the AI should do first.
+
+### Step 2: Process
+Describe the processing logic.
+
+### Step 3: Output
+Describe the expected output.
+
+## Parameters
+- **topic** (string, required): The topic to work on
+- **date** (string, optional): Target date (default: today)
+- **publish** (boolean, optional): Auto-publish result (default: false)
+```
+
+### Skill Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Unique identifier (lowercase, hyphens) |
+| `description` | Yes | What the skill does (shown in UI and used for routing) |
+| `dependencies` | No | Other skills this skill can call |
+| `instructions` | Yes | Full markdown body -- the system prompt |
+| `parameters` | No | Input parameters with type, required flag, description |
+
+## Executing a Skill
+
+### From the UI
+
+1. Go to **Skills**
+2. Click the play button on any active skill
+3. Fill in parameters (if any)
+4. Click **Run**
+
+The result appears as a streaming response in the skill detail view.
+
+### From Chat
+
+Mention the skill's purpose in a conversation. PAIONE routes to the appropriate skill based on the description field.
+
+### Programmatically
+
+```
+POST /api/v1/skills/{skill_id}/execute
+Content-Type: application/json
+
+{
+  "parameters": {
+    "topic": "AI trends 2026",
+    "date": "2026-03-19"
+  }
+}
+```
+
+## Skill Chaining (call_skill)
+
+Skills can call other skills using the `call_skill` tool:
+
+```markdown
+## Step 3: Publish
+After creating the article, call the publish skill:
+call_skill("ghost-publish", "Publish today's article")
+```
+
+This enables multi-step workflows:
+
+```
+calendar-briefing --> content-pipeline --> ghost-publish
+```
+
+Each skill in the chain receives the previous skill's output as context.
+
+### Dependencies
+
+Declare dependencies in the frontmatter to document the chain:
+
+```yaml
+---
+name: content-pipeline
+dependencies:
+  - ghost-publish
+---
+```
+
+## Skill Files (Templates and References)
+
+Skills can reference files from the `skill_templates/` directory:
+
+```
+api/skill_templates/
+  aiianer-briefing.md
+  ghost-artikel-erstellen.md
+  ghost-publish.md
+```
+
+These templates serve as starting points for creating custom skills.
+
+## Allowed Tools
+
+Each skill can be restricted to specific tools. Configure `allowed_tools` to control which MCP tools a skill can access:
+
+```json
+["mcp__github__create_issue", "mcp__linear__create_task"]
+```
+
+If `allowed_tools` is empty, the skill has access to all available tools.
+
+## Execution Logs
+
+Every skill execution is logged:
+
+| Field | Description |
+|-------|-------------|
+| Status | `success`, `error`, `running` |
+| Duration | Execution time in milliseconds |
+| Input Summary | What was sent to the AI |
+| Output Summary | What the AI produced |
+| Error Message | What went wrong (if failed) |
+
+View execution history in the skill detail page.

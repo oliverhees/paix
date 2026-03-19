@@ -1,0 +1,184 @@
+# Skills
+
+Skills sind wiederverwendbare KI-Faehigkeiten. Jeder Skill hat einen Systemprompt, optionale Parameter, Tool-Zugriff und kann mit anderen Skills verkettet werden.
+
+## Was ist ein Skill?
+
+Ein Skill bringt PAIONE bei, wie eine bestimmte Aufgabe erledigt wird. Denk daran wie an ein Rezept: Es definiert was die KI tun soll, welche Tools sie nutzen darf und welche Parameter sie akzeptiert.
+
+**Beispiele:**
+- "Kalender-Briefing" -- Heutigen Kalender zusammenfassen und Prioritaeten vorschlagen
+- "Content Pipeline" -- Blogartikel aus einem Thema entwerfen
+- "Ghost Publish" -- Artikel im Ghost CMS veroeffentlichen
+
+## Vorinstallierte Skills
+
+PAIONE kommt mit Preset-Skills, die du aktivieren kannst:
+
+| Skill | Kategorie | Was er tut |
+|-------|-----------|-----------|
+| Kalender-Briefing | Produktivitaet | Tagesplan mit Empfehlungen zusammenfassen |
+| Content Pipeline | Schreiben | Content aus einem Thema oder Briefing erstellen |
+| Meeting Prep | Produktivitaet | Gespraechspunkte und Agenda vorbereiten |
+| Follow Up | Kommunikation | Follow-up-Nachrichten entwerfen |
+| Idea Capture | Kreativitaet | Rohe Ideen strukturieren und weiterentwickeln |
+
+Aktiviere oder deaktiviere Preset-Skills auf der **Skills**-Seite.
+
+## Skill erstellen
+
+### Mit KI (empfohlen)
+
+1. Gehe zu **Skills** in der Sidebar
+2. Klicke auf **Skill erstellen**
+3. Beschreibe, was der Skill tun soll
+4. PAIONE generiert die SKILL.md-Datei
+5. Pruefe und passe den generierten Skill an
+6. Speichern
+
+### Manuell (SKILL.md-Format)
+
+Skills folgen dem **Anthropic Skills Open Standard** -- eine Markdown-Datei mit YAML-Frontmatter:
+
+```markdown
+---
+name: mein-skill
+description: |
+  Eine klare Beschreibung, was dieser Skill tut.
+  Wird fuer Tool-Routing und Anzeige verwendet.
+dependencies:
+  - ghost-publish
+---
+
+# Mein Skill Titel
+
+Anweisungen fuer die KI bei der Ausfuehrung dieses Skills.
+
+## Verfuegbare Tools
+- **storage_read**: Dateien aus dem lokalen Storage lesen
+- **storage_write**: Dateien in den lokalen Storage schreiben
+- **call_skill**: Zu einem anderen Skill verketten
+- **create_artifact**: Ergebnisse im Chat anzeigen
+
+## Workflow
+
+### Schritt 1: Input sammeln
+Beschreibe, was die KI zuerst tun soll.
+
+### Schritt 2: Verarbeiten
+Beschreibe die Verarbeitungslogik.
+
+### Schritt 3: Ausgabe
+Beschreibe das erwartete Ergebnis.
+
+## Parameters
+- **topic** (string, required): Das Thema
+- **date** (string, optional): Zieldatum (Standard: heute)
+- **publish** (boolean, optional): Ergebnis automatisch publizieren (Standard: false)
+```
+
+### Skill-Felder
+
+| Feld | Pflicht | Beschreibung |
+|------|---------|-------------|
+| `name` | Ja | Eindeutiger Bezeichner (Kleinbuchstaben, Bindestriche) |
+| `description` | Ja | Was der Skill tut (in der UI sichtbar, fuer Routing genutzt) |
+| `dependencies` | Nein | Andere Skills, die dieser Skill aufrufen kann |
+| `instructions` | Ja | Kompletter Markdown-Body -- der Systemprompt |
+| `parameters` | Nein | Eingabeparameter mit Typ, Pflicht-Flag, Beschreibung |
+
+## Skill ausfuehren
+
+### Ueber die UI
+
+1. Gehe zu **Skills**
+2. Klicke den Play-Button bei einem aktiven Skill
+3. Fuelle Parameter aus (falls vorhanden)
+4. Klicke **Ausfuehren**
+
+Das Ergebnis erscheint als Streaming-Antwort in der Skill-Detailansicht.
+
+### Ueber den Chat
+
+Erwaehne den Zweck des Skills in einem Gespraech. PAIONE routet anhand des Description-Felds zum passenden Skill.
+
+### Programmatisch
+
+```
+POST /api/v1/skills/{skill_id}/execute
+Content-Type: application/json
+
+{
+  "parameters": {
+    "topic": "KI-Trends 2026",
+    "date": "2026-03-19"
+  }
+}
+```
+
+## Skill-Verkettung (call_skill)
+
+Skills koennen andere Skills mit dem `call_skill`-Tool aufrufen:
+
+```markdown
+## Schritt 3: Veroeffentlichen
+Nach dem Erstellen des Artikels den Publish-Skill aufrufen:
+call_skill("ghost-publish", "Veroeffentliche den heutigen Artikel")
+```
+
+So entstehen mehrstufige Workflows:
+
+```
+kalender-briefing --> content-pipeline --> ghost-publish
+```
+
+Jeder Skill in der Kette erhaelt die Ausgabe des vorherigen als Kontext.
+
+### Dependencies
+
+Deklariere Abhaengigkeiten im Frontmatter, um die Kette zu dokumentieren:
+
+```yaml
+---
+name: content-pipeline
+dependencies:
+  - ghost-publish
+---
+```
+
+## Skill-Dateien (Templates und Referenzen)
+
+Skills koennen auf Dateien im `skill_templates/`-Verzeichnis verweisen:
+
+```
+api/skill_templates/
+  aiianer-briefing.md
+  ghost-artikel-erstellen.md
+  ghost-publish.md
+```
+
+Diese Templates dienen als Startpunkt fuer eigene Skills.
+
+## Erlaubte Tools
+
+Jeder Skill kann auf bestimmte Tools beschraenkt werden. Konfiguriere `allowed_tools`, um zu steuern, welche MCP-Tools ein Skill nutzen darf:
+
+```json
+["mcp__github__create_issue", "mcp__linear__create_task"]
+```
+
+Wenn `allowed_tools` leer ist, hat der Skill Zugriff auf alle verfuegbaren Tools.
+
+## Ausfuehrungsprotokoll
+
+Jede Skill-Ausfuehrung wird protokolliert:
+
+| Feld | Beschreibung |
+|------|-------------|
+| Status | `success`, `error`, `running` |
+| Dauer | Ausfuehrungszeit in Millisekunden |
+| Input Summary | Was an die KI gesendet wurde |
+| Output Summary | Was die KI produziert hat |
+| Fehlermeldung | Was schiefging (bei Fehler) |
+
+Sieh die Ausfuehrungshistorie in der Skill-Detailseite ein.

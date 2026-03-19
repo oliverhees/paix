@@ -4,13 +4,13 @@ export default {
     type: 'separator',
     title: 'User Guide',
   },
-  guide: 'User Guide',
+  'getting-started': 'Getting Started',
+  configuration: 'Configuration',
+  telos: 'TELOS Identity',
+  guide: 'Guides',
   '-- Developer': {
     type: 'separator',
     title: 'Developer',
   },
-  'getting-started': 'Getting Started',
-  configuration: 'Configuration',
-  telos: 'TELOS Identity',
   dev: 'Developer Reference',
 }

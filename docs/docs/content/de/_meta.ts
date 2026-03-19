@@ -1,16 +1,16 @@
 export default {
-  index: 'Einführung',
+  index: 'Einfuehrung',
   '-- Benutzerhandbuch': {
     type: 'separator',
     title: 'Benutzerhandbuch',
   },
-  guide: 'Benutzerhandbuch',
+  'getting-started': 'Erste Schritte',
+  configuration: 'Konfiguration',
+  telos: 'TELOS-Identitaet',
+  guide: 'Anleitungen',
   '-- Entwickler': {
     type: 'separator',
     title: 'Entwickler',
   },
-  'getting-started': 'Erste Schritte',
-  configuration: 'Konfiguration',
-  telos: 'TELOS-Identität',
   dev: 'Entwickler-Referenz',
 }

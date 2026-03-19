@@ -1,41 +1,94 @@
 # Konfiguration
 
-PAIONE wird über Umgebungsvariablen in `USER/.env` und Persona-Dateien in `USER/groups/` konfiguriert.
+PAIONE wird ueber Umgebungsvariablen, Persona-Dateien und die Settings-Oberflaeche konfiguriert.
 
 ## Umgebungsvariablen
 
+Bearbeite `USER/.env` fuer deine Instanz:
+
 | Variable | Pflicht | Standard | Beschreibung |
 |----------|---------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Ja | — | Dein Anthropic API-Key |
+| `ANTHROPIC_API_KEY` | Ja | -- | Dein Anthropic API-Key |
+| `OPENAI_API_KEY` | Nein | -- | OpenAI API-Key (fuer weitere Modelle) |
+| `GOOGLE_AI_API_KEY` | Nein | -- | Google AI API-Key |
+| `BRAVE_SEARCH_API_KEY` | Nein | -- | Brave Search API-Key |
+| `TELEGRAM_BOT_TOKEN` | Nein | -- | Telegram-Bot-Integration |
 | `PORT` | Nein | 3000 | Web-UI Port |
-| `LOCALE` | Nein | en | Sprache (en/de) |
 | `LOG_LEVEL` | Nein | info | Log-Level |
-| `MODEL_FAST` | Nein | claude-haiku | Schnelles Modell |
-| `MODEL_BALANCED` | Nein | claude-sonnet | Ausgewogenes Modell |
-| `MODEL_POWERFUL` | Nein | claude-opus | Leistungsstarkes Modell |
-| `GRAPHITI_URL` | Nein | — | Graphiti REST API URL (automatisch in Docker) |
-| `OPENROUTER_API_KEY` | Nein | — | OpenRouter API-Key für weitere Modelle |
-| `OLLAMA_BASE_URL` | Nein | — | Ollama-URL für lokale Modelle |
 
-Siehe `.env.example` für die vollständige Liste.
+API-Keys koennen auch ueber **Settings > Integrations** in der Web-UI verwaltet werden. In der Datenbank gespeicherte Keys haben Vorrang vor `.env`-Werten.
 
-## Persona
+Siehe `.env.example` fuer die vollstaendige Liste.
 
-Deine Persona definiert, wer PAIONE ist. Sie besteht aus 5 Dateien in `USER/groups/persona/`:
+## Persona-Dateien
+
+Die Persona definiert, wie PAIONE kommuniziert. Sie besteht aus 5 Markdown-Dateien:
 
 | Datei | Zweck |
 |-------|-------|
-| `identity.md` | Name, Ton, Rolle |
-| `rules.md` | Verhaltensregeln |
-| `skills.md` | Was der Assistent kann |
-| `preferences.md` | Stil- und Formatierungswünsche |
+| `personality.md` | Charaktereigenschaften und Kommunikationsstil |
+| `about_user.md` | Was PAIONE ueber dich weiss |
+| `communication_style.md` | Tonfall, Sprachpraeferenzen, Formatierung |
+| `rules.md` | Verhaltensregeln und Einschraenkungen |
 | `pinned.md` | Immer einbezogener Kontext |
 
-## Projektstruktur
+### Persona bearbeiten
+
+Zwei Moeglichkeiten:
+
+1. **Web-UI** -- Gehe zu **Settings > Persona** und bearbeite jede Datei inline
+2. **Dateisystem** -- Bearbeite Dateien direkt in `USER/persona/`
+
+Jede Datei teilt sich anteilig das Budget von 1.500 Token (~300 Token pro Datei).
+
+### Presets
+
+Die Settings-Seite bietet Persoenlichkeits-Presets als Vorlagen:
+
+- **Professionell** -- Formal, praezise, geschaeftsorientiert
+- **Freundlich** -- Warm, locker, nahbar
+- **Technisch** -- Detailorientiert, code-affin, systematisch
+- **Kreativ** -- Fantasievoll, verspielt, unkonventionell
+
+## API Keys (Integrations)
+
+PAIONE unterstuetzt mehrere LLM-Provider. Verwalte deine API-Keys unter **Settings > Integrations**:
+
+| Provider | Key-Format | Wofuer |
+|----------|-----------|--------|
+| **Anthropic** | `sk-ant-...` | Claude-Modelle (primaer) |
+| **OpenAI** | `sk-...` | GPT-Modelle (Fallback/Alternative) |
+| **Google** | `AI...` | Gemini-Modelle |
+
+Keys werden verschluesselt in der Datenbank gespeichert. Die UI zeigt nur einen Hint (letzte 4 Zeichen).
+
+## Lokaler Storage
+
+PAIONE speichert Dateien lokal statt in der Cloud:
 
 ```
-SYSTEM/  → Infrastruktur (wird bei Updates aktualisiert, nicht ändern)
-USER/    → Deine Anpassungen (werden nie durch Updates überschrieben)
-DATA/    → Laufzeitdaten (nicht im Git, wird automatisch erstellt)
-docs/    → Dieses Dokumentationsportal
+DATA/storage/
+  briefings/      --> Generierte Briefings
+  articles/       --> Verarbeitete Artikel
+  exports/        --> Datenexporte
+  uploads/        --> Benutzer-Uploads
 ```
+
+Skills koennen Dateien ueber `storage_read` und `storage_write` lesen und schreiben. Der Storage-Pfad wird ueber `STORAGE_PATH` konfiguriert (Default: `DATA/storage/` in Docker).
+
+## Token-Budget
+
+Jede Nachricht an die KI enthaelt einen sorgfaeltig budgetierten Systemprompt:
+
+```
+Temporaler Kontext  -->      50 Token  (aktuelles Datum/Uhrzeit)
+Persona-Dateien     -->   1.500 Token  (deine 5 Persona-Dateien)
+TELOS-Snapshot      -->   1.000 Token  (relevante Identitaetsdimensionen)
+Graphiti-Abruf      -->   3.000 Token  (semantische Gedaechtnissuche)
+Arbeitsbereich      -->  20.000 Token  (Tools + Antwort)
+Konversation        -->     Rest       (~174.450 Token)
+-----------------------------------------------------
+Fester Overhead:       5.550 Token   (konstant pro Nachricht)
+```
+
+Dieses Budget-System sorgt fuer konstante Performance, egal wie lange du PAIONE nutzt. Das Gedaechtnis skaliert ueber Graphiti (externer Wissensgraph), nicht ueber wachsende Prompts.

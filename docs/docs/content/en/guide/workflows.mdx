@@ -1,0 +1,189 @@
+# Workflows
+
+Workflows (called "Routines" in the UI) are scheduled, autonomous AI tasks. They run on a cron schedule, execute a prompt with optional tools, and deliver results via notifications, webhooks, or chains.
+
+## What is a Workflow?
+
+A workflow is a prompt that runs automatically on a schedule. PAIONE executes the prompt using the configured model, processes the result, and notifies you.
+
+**Examples:**
+- "Every weekday at 8am, summarize my calendar and create a briefing"
+- "Every Monday, review my open GitHub issues and prioritize them"
+- "Every hour, check my inbox for urgent messages"
+
+## Creating a Workflow
+
+### With AI Builder
+
+1. Go to **Routines** in the sidebar
+2. Click **New Routine**
+3. Select **AI Builder**
+4. Describe what you want in natural language: "Check my GitHub repos for open PRs every morning at 9am"
+5. PAIONE generates the complete configuration (prompt, schedule, model, tags)
+6. Review and save
+
+### From a Template
+
+1. Go to **Routines > Templates**
+2. Browse by category (productivity, monitoring, reporting, etc.)
+3. Click a template
+4. Fill in the variables (e.g., repository name, email address)
+5. Adjust the schedule if needed
+6. Save
+
+### Manually
+
+1. Go to **Routines > New Routine**
+2. Fill in the fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| Name | Yes | Short, descriptive name |
+| Prompt | Yes | The instruction for the AI |
+| Cron Expression | Yes | When to run (e.g., `0 8 * * 1-5` = weekdays at 8am) |
+| Model | No | Which Claude model to use (default: Sonnet) |
+| Max Tokens | No | Response length limit (default: 8192) |
+| Temperature | No | Creativity (0.0-1.0, default: 0.7) |
+| Tags | No | Labels for organization |
+
+## Cron Schedule
+
+Workflows use standard 5-part cron expressions:
+
+```
+ *    *    *    *    *
+ |    |    |    |    |
+ |    |    |    |    +-- Day of week (0-7, 0=Sun)
+ |    |    |    +------- Month (1-12)
+ |    |    +------------ Day of month (1-31)
+ |    +----------------- Hour (0-23)
+ +---------------------- Minute (0-59)
+```
+
+**Common patterns:**
+
+| Expression | Meaning |
+|-----------|---------|
+| `0 8 * * 1-5` | Weekdays at 8:00 AM |
+| `0 9 * * 1` | Every Monday at 9:00 AM |
+| `*/30 * * * *` | Every 30 minutes |
+| `0 0 1 * *` | First day of each month at midnight |
+| `0 18 * * 5` | Every Friday at 6:00 PM |
+
+All times respect the configured timezone (default: `Europe/Berlin`).
+
+## Workflow Chains
+
+Chain workflows together so one triggers the next:
+
+```
+Data Collection --> Analysis --> Report Generation --> Email Notification
+```
+
+### Creating a Chain
+
+1. Open a workflow
+2. Go to the **Chains** tab
+3. Click **Add Chain**
+4. Select the target workflow
+5. Configure:
+
+| Option | Description |
+|--------|-------------|
+| Trigger on | `success`, `failure`, or `always` |
+| Pass result | Forward the output to the next workflow |
+| Context mapping | Map specific fields between workflows |
+| Execution order | Priority when multiple chains exist |
+
+### Chain Graph
+
+View all chains across your workflows in **Routines > Chains > Graph**. This shows the full DAG (directed acyclic graph) of your automated pipeline.
+
+Self-chains are prevented -- a workflow cannot trigger itself.
+
+## Manual Trigger
+
+Run any workflow on demand:
+
+1. Open the workflow
+2. Click **Run Now**
+3. Optionally provide extra context
+4. Optionally skip the condition check
+
+## Conditional Execution
+
+Add a `condition_prompt` to check whether the workflow should actually run:
+
+```
+Only run if there are unread emails from the last 24 hours.
+```
+
+The condition is evaluated before the main prompt. If the condition returns "skip", the run is marked as skipped and no tokens are spent on the main execution.
+
+## Cost Controls
+
+| Setting | Description |
+|---------|-------------|
+| Max cost per run | Stop execution if estimated cost exceeds this (in cents) |
+| Monthly budget | Total monthly spending limit across all runs of this workflow |
+
+## Webhooks
+
+Trigger external services when a workflow completes:
+
+1. Open a workflow
+2. Go to **Webhooks** tab
+3. Add a webhook URL
+4. Configure: method (POST/GET), headers, payload template, trigger condition
+5. Optional: add a signing secret for verification
+
+## Notifications
+
+After each run, PAIONE creates a notification with:
+- Title and summary of what happened
+- Status (success/failure)
+- Link to the full run details
+
+Notifications appear in the **Routines > Notifications** panel. Enable **Web Push** to get browser notifications even when the tab is closed.
+
+## Templates
+
+Templates are pre-built workflow configurations:
+
+| Field | Description |
+|-------|-------------|
+| Category | productivity, monitoring, reporting, etc. |
+| Suggested Cron | Recommended schedule |
+| Variables | Placeholders you fill in when creating |
+| Prompt Template | The base prompt with `{variable}` placeholders |
+
+## Import / Export
+
+- **Export**: Download workflow configurations as JSON (single or bulk)
+- **Import**: Upload JSON to create workflows (imported as inactive)
+- **Bulk Actions**: Activate, deactivate, or delete multiple workflows at once
+
+## Analytics
+
+View aggregated statistics in **Routines > Analytics**:
+
+- Total runs, success rate, failure rate
+- Token usage and estimated costs
+- Average duration per workflow
+- Filterable by date range
+
+## Run History
+
+Each workflow tracks its execution history:
+
+| Field | Description |
+|-------|-------------|
+| Status | `pending`, `running`, `success`, `failed`, `cancelled`, `skipped` |
+| Trigger Type | `scheduled` or `manual` |
+| Duration | Execution time |
+| Tokens | Input + output token count |
+| Cost | Estimated cost in cents |
+| Tool Calls | Number of tool invocations |
+| Artifacts | Generated files or code blocks |
+
+View the full result text, resolved prompt, and any artifacts in the run detail page. Failed runs can be retried.

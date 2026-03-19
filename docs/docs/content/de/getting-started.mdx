@@ -32,9 +32,53 @@ ANTHROPIC_API_KEY=sk-ant-dein-key-hier
 docker-compose up -d
 ```
 
-Öffne [http://localhost:3000](http://localhost:3000) — der Setup-Wizard führt dich durch die Erstkonfiguration.
+Damit starten alle Services:
+
+| Service | Aufgabe |
+|---------|---------|
+| **paione-web** | Next.js Frontend (Port 3000) |
+| **paione-api** | FastAPI Backend (Port 8000) |
+| **postgres** | PostgreSQL-Datenbank |
+| **redis** | Cache und Message Broker |
+| **falkordb** | Graph-Datenbank fuer Graphiti-Gedaechtnis |
+| **celery-worker** | Hintergrund-Ausfuehrung |
+| **celery-beat** | Zeitgesteuerte Tasks |
+
+## Setup-Wizard
+
+Oeffne [http://localhost:3000](http://localhost:3000). Der Setup-Wizard fuehrt dich durch drei Schritte:
+
+1. **Willkommen** -- Ueberblick, was PAIONE ist
+2. **Profil** -- Benutzerkonto erstellen (Name, E-Mail, Passwort)
+3. **KI verbinden** -- Anthropic API Key eintragen (optional, kann spaeter in den Settings ergaenzt werden)
+
+Nach dem Wizard landest du direkt im Chat.
+
+## Erste Schritte nach dem Setup
+
+1. **Chat** -- Sende deine erste Nachricht
+2. **Settings** -- Konfiguriere deine [Persona](/de/configuration#persona-dateien), um den Kommunikationsstil anzupassen
+3. **TELOS** -- Fuelle deine [TELOS-Dimensionen](/de/telos) aus, damit PAIONE weiss wer du bist
+4. **Skills** -- Entdecke die [vorinstallierten Skills](/de/guide/skills) oder erstelle eigene
+5. **Werkzeuge** -- Verbinde [MCP Server oder REST APIs](/de/guide/werkzeuge) als Tools
+6. **Workflows** -- Richte [geplante Aufgaben](/de/guide/workflows) ein, um Arbeit zu automatisieren
+
+## Projektstruktur
+
+```
+paione/
+  web/       --> Next.js Frontend (Dashboard, Chat, Settings)
+  api/       --> FastAPI Backend (REST API, LLM, Skills, Routines)
+  USER/      --> Deine Konfiguration (Persona, TELOS, .env)
+  DATA/      --> Laufzeitdaten (Storage, Uploads -- nicht im Git)
+  SYSTEM/    --> System-Defaults (werden bei Updates aktualisiert)
+  docs/      --> Dieses Dokumentationsportal (Nextra)
+  infra/     --> Docker- und Nginx-Konfiguration
+```
 
 ## Wie geht es weiter?
 
-- Konfiguriere deine [Persona](/de/configuration#persona) — bringe PAIONE bei, wer du bist
-- Erkunde die [Architektur](/de/architecture) — verstehe, wie es funktioniert
+- Konfiguriere deine [Persona](/de/configuration#persona-dateien) -- passe den Kommunikationsstil an
+- Richte deine [TELOS-Identitaet](/de/telos) ein -- erzaehl PAIONE wer du bist
+- Entdecke die [Skills](/de/guide/skills) -- was PAIONE fuer dich tun kann
+- Verbinde [Werkzeuge](/de/guide/werkzeuge) -- gib PAIONE Tools an die Hand
