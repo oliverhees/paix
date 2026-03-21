@@ -125,8 +125,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <Link href="/">
                 <div className="flex-1 text-left">
-                  <div className="font-display text-2xl font-black tracking-[0.18em] leading-none drop-shadow-[0_0_8px_oklch(0.644_0.238_37/0.6)]">
-                    <span className="text-sidebar-primary">PAI</span><span className="text-foreground">ONE</span>
+                  <div className="font-display text-2xl font-black tracking-[0.18em] leading-none">
+                    <span className="text-sidebar-primary">PAI</span><span className="text-foreground opacity-90">ONE</span>
                   </div>
                   <div className="text-[0.62rem] tracking-[0.12em] uppercase text-sidebar-foreground/50 mt-1">
                     Personal AI · ONE
