@@ -820,7 +820,7 @@ body {
     --sidebar-ring: oklch(0.644 0.238 37);
 
     --display-family: var(--font-orbitron);
-    --text-family: var(--font-exo2);
+    --text-family: var(--font-space-grotesk);
     --display-weight: 700;
 
     @variant dark {
@@ -848,7 +848,7 @@ body {
         --chart-3: var(--primary-300);
         --chart-4: var(--primary-200);
         --chart-5: var(--primary-100);
-        --sidebar: oklch(0.068 0.010 37);          /* between bg and card — clearly distinct */
+        --sidebar: oklch(0.082 0.018 37);          /* warm orange-dark — clearly distinct from bg */
         --sidebar-foreground: oklch(0.705 0 0);
         --sidebar-primary: oklch(0.644 0.238 37);  /* #FF5722 */
         --sidebar-primary-foreground: var(--color-white);
