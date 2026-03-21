@@ -824,36 +824,37 @@ body {
     --display-weight: 700;
 
     @variant dark {
-        --background: oklch(0.051 0 0);       /* #0A0A0A */
+        /* 3-level depth hierarchy: background → sidebar → card */
+        --background: oklch(0.042 0 0);            /* #0A0A0A — deepest black */
         --foreground: oklch(0.92 0 0);
-        --card: oklch(0.109 0 0);             /* #1A1A1A */
+        --card: oklch(0.100 0.012 37);             /* warm dark surface — elevated above bg */
         --card-foreground: oklch(0.92 0 0);
-        --popover: oklch(0.109 0 0);          /* #1A1A1A */
+        --popover: oklch(0.100 0.012 37);
         --popover-foreground: oklch(0.92 0 0);
-        --primary: oklch(0.644 0.238 37);     /* #FF5722 */
+        --primary: oklch(0.644 0.238 37);          /* #FF5722 */
         --primary-foreground: var(--color-white);
-        --secondary: oklch(0.752 0.168 42);   /* #FF8A50 */
+        --secondary: oklch(0.752 0.168 42);        /* #FF8A50 */
         --secondary-foreground: var(--color-white);
-        --muted: oklch(0.109 0 0);            /* #1A1A1A */
-        --muted-foreground: oklch(0.552 0 0);
-        --accent: oklch(0.190 0 0);           /* #2C2C2C */
+        --muted: oklch(0.100 0.012 37);
+        --muted-foreground: oklch(0.500 0 0);
+        --accent: oklch(0.140 0.020 37);           /* warm hover state */
         --accent-foreground: oklch(0.92 0 0);
         --destructive: oklch(0.704 0.191 22.216);
-        --border: oklch(0.26 0.06 37);         /* #2C2C2C + orange tint */
-        --input: oklch(0.26 0.06 37);         /* orange-tinted input */
-        --ring: oklch(0.644 0.238 37);        /* #FF5722 */
+        --border: oklch(0.644 0.238 37 / 0.22);   /* real orange border — subtle glow */
+        --input: oklch(0.644 0.238 37 / 0.28);    /* slightly stronger on inputs */
+        --ring: oklch(0.644 0.238 37);             /* #FF5722 */
         --chart-1: oklch(0.644 0.238 37);
         --chart-2: oklch(0.752 0.168 42);
         --chart-3: var(--primary-300);
         --chart-4: var(--primary-200);
         --chart-5: var(--primary-100);
-        --sidebar: oklch(0.109 0 0);          /* #1A1A1A */
+        --sidebar: oklch(0.068 0.010 37);          /* between bg and card — clearly distinct */
         --sidebar-foreground: oklch(0.705 0 0);
-        --sidebar-primary: oklch(0.644 0.238 37);   /* #FF5722 */
+        --sidebar-primary: oklch(0.644 0.238 37);  /* #FF5722 */
         --sidebar-primary-foreground: var(--color-white);
-        --sidebar-accent: oklch(0.190 0 0);   /* #2C2C2C */
+        --sidebar-accent: oklch(0.140 0.020 37);   /* warm hover */
         --sidebar-accent-foreground: oklch(0.92 0 0);
-        --sidebar-border: oklch(0.644 0.238 37 / 0.35);  /* orange glow border */
+        --sidebar-border: oklch(0.644 0.238 37 / 0.40);  /* orange separator */
         --sidebar-ring: oklch(0.644 0.238 37);
     }
 }
