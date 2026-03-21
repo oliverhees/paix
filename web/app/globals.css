@@ -194,30 +194,43 @@
       0 4px 32px oklch(0 0 0 / 0.40);
   }
 
-  /* PAIONE — main content panel border (HUD frame) */
+  /* PAIONE — main content panel left border (HUD frame) — subtle warm tone */
   html.dark body[data-theme-preset="paione"] main {
     box-shadow:
-      inset 1px 0 0 oklch(0.644 0.238 37 / 0.30),
-      inset 0 1px 0 oklch(0.644 0.238 37 / 0.15);
+      inset 1px 0 0 oklch(0.644 0.238 37 / 0.18),
+      inset 0 1px 0 oklch(0.644 0.238 37 / 0.08);
+  }
+
+  /* PAIONE — site header: sidebar color + glass blur */
+  html.dark body[data-theme-preset="paione"] main > header {
+    background: oklch(0.082 0.018 37 / 0.92) !important;
+    border-bottom-color: oklch(0.644 0.238 37 / 0.18) !important;
+    backdrop-filter: blur(20px) !important;
   }
 
   /* PAIONE — active nav item: orange glassmorphism */
   html.dark body[data-theme-preset="paione"] [data-slot="sidebar-menu-button"][data-active="true"] {
     background: oklch(0.644 0.238 37 / 0.13) !important;
-    border: 1px solid oklch(0.644 0.238 37 / 0.40) !important;
+    border: 1px solid oklch(0.644 0.238 37 / 0.42) !important;
     box-shadow:
       inset 0 1px 0 oklch(0.644 0.238 37 / 0.30),
-      inset 0 -1px 0 oklch(0.644 0.238 37 / 0.10),
-      0 0 16px oklch(0.644 0.238 37 / 0.12);
+      inset 0 -1px 0 oklch(0.644 0.238 37 / 0.08),
+      0 0 18px oklch(0.644 0.238 37 / 0.14);
     backdrop-filter: blur(8px);
-    color: oklch(0.90 0.04 37) !important;
+    color: oklch(0.92 0.04 37) !important;
+  }
+
+  /* PAIONE — nav item text: futuristic letter-spacing */
+  html.dark body[data-theme-preset="paione"] [data-slot="sidebar-menu-button"] span:last-child {
+    letter-spacing: 0.05em;
+    font-size: 0.8rem;
   }
 
   /* PAIONE — inactive sidebar icons: thin + subtle orange tint */
   html.dark body[data-theme-preset="paione"] [data-slot="sidebar-menu-button"] svg {
     stroke-width: 1.25;
-    color: oklch(0.600 0.080 37);
-    opacity: 0.65;
+    color: oklch(0.580 0.090 37);
+    opacity: 0.60;
     transition: opacity 0.2s, color 0.2s;
   }
 
@@ -231,7 +244,7 @@
   /* PAIONE — hover state on nav items */
   html.dark body[data-theme-preset="paione"] [data-slot="sidebar-menu-button"]:not([data-active="true"]):hover {
     background: oklch(0.644 0.238 37 / 0.07) !important;
-    border: 1px solid oklch(0.644 0.238 37 / 0.20) !important;
+    border: 1px solid oklch(0.644 0.238 37 / 0.22) !important;
   }
 
   html.dark body[data-theme-preset="paione"] [data-slot="sidebar-menu-button"]:not([data-active="true"]):hover svg {

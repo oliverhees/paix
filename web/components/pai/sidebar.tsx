@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useActivityStatus } from "@/components/pai/activity-feed";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -95,11 +96,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { setOpenMobile, isMobile } = useSidebar();
   const { hasRunning } = useActivityStatus(10000);
+  const { user, initialize } = useAuthStore();
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
 
   // Close mobile sidebar on navigation
   useEffect(() => {
     if (isMobile) setOpenMobile(false);
   }, [pathname, isMobile, setOpenMobile]);
+
+  const userName = user?.name || "PAIONE";
+  const userEmail = user?.email || "Personal AI";
+  const userInitials = user?.name
+    ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    : "P1";
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -112,16 +124,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
             >
               <Link href="/">
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-sm font-bold">
-                  <Brain className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">
-                    <span className="text-sidebar-primary">PAI</span>
-                    <span>ONE</span>
+                {/* Collapsed: shows "P" initial */}
+                <div className="flex aspect-square size-8 shrink-0 items-center justify-center">
+                  <span className="font-display text-sidebar-primary font-black text-lg leading-none">
+                    P
                   </span>
-                  <span className="truncate text-xs text-sidebar-foreground/70">
-                    Personal AI · ONE
+                </div>
+                {/* Expanded: large PAIONE wordmark */}
+                <div className="flex-1 text-left">
+                  <span className="font-display text-xl font-black tracking-[0.14em] leading-none">
+                    <span className="text-sidebar-primary">PAI</span>
+                    <span className="text-foreground">ONE</span>
                   </span>
                 </div>
               </Link>
@@ -173,26 +186,29 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              size="lg"
-              asChild
-              tooltip="Settings"
-            >
-              <Link href="/settings">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarFallback className="rounded-lg text-xs font-medium">
-                    P1
-                  </AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">
-                    <span className="text-sidebar-primary">PAI</span>
-                    <span>ONE</span>
-                  </span>
-                  <span className="truncate text-xs text-sidebar-foreground/70">Personal AI</span>
-                </div>
-              </Link>
-            </SidebarMenuButton>
+            <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/20 p-0.5">
+              <SidebarMenuButton
+                size="lg"
+                asChild
+                tooltip="Einstellungen"
+              >
+                <Link href="/settings">
+                  <Avatar className="h-8 w-8 rounded-lg">
+                    <AvatarFallback className="rounded-lg text-xs font-display font-bold bg-sidebar-primary/15 text-sidebar-primary border border-sidebar-primary/30">
+                      {userInitials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold tracking-wide">
+                      {userName}
+                    </span>
+                    <span className="truncate text-xs text-sidebar-foreground/60">
+                      {userEmail}
+                    </span>
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
