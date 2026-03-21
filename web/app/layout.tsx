@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Orbitron, Exo_2 } from "next/font/google";
 import { cookies } from "next/headers";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "next-themes";
@@ -11,6 +11,16 @@ import "./globals.css";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+});
+
+const orbitron = Orbitron({
+  subsets: ["latin"],
+  variable: "--font-orbitron",
+});
+
+const exo2 = Exo_2({
+  subsets: ["latin"],
+  variable: "--font-exo2",
 });
 
 export const metadata: Metadata = {
@@ -82,7 +92,7 @@ export default async function RootLayout({
       </head>
       <body
         suppressHydrationWarning
-        className={cn("bg-background text-foreground font-sans antialiased", inter.variable)}
+        className={cn("bg-background text-foreground font-sans antialiased", inter.variable, orbitron.variable, exo2.variable)}
         style={{ backgroundColor: "#09090b", minHeight: "100vh" }}
         {...bodyAttributes}
       >
