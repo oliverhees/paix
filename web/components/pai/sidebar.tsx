@@ -120,22 +120,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              className="hover:bg-transparent cursor-default"
               asChild
             >
               <Link href="/">
-                {/* Collapsed: shows "P" initial */}
-                <div className="flex aspect-square size-8 shrink-0 items-center justify-center">
-                  <span className="font-display text-sidebar-primary font-black text-lg leading-none">
-                    P
-                  </span>
-                </div>
-                {/* Expanded: large PAIONE wordmark */}
                 <div className="flex-1 text-left">
-                  <span className="font-display text-xl font-black tracking-[0.14em] leading-none">
-                    <span className="text-sidebar-primary">PAI</span>
-                    <span className="text-foreground">ONE</span>
-                  </span>
+                  <div className="font-display text-2xl font-black tracking-[0.18em] leading-none text-sidebar-primary drop-shadow-[0_0_8px_oklch(0.644_0.238_37/0.6)]">
+                    PAIONE
+                  </div>
+                  <div className="text-[0.62rem] tracking-[0.12em] uppercase text-sidebar-foreground/50 mt-1">
+                    Personal AI · ONE
+                  </div>
                 </div>
               </Link>
             </SidebarMenuButton>

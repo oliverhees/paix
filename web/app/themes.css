@@ -824,37 +824,37 @@ body {
     --display-weight: 700;
 
     @variant dark {
-        /* 3-level depth hierarchy: background → sidebar → card */
-        --background: oklch(0.042 0 0);            /* #0A0A0A — deepest black */
+        /* Sunset Glow structure — bg = card (glass CSS handles elevation) */
+        --background: oklch(0.042 0 0);
         --foreground: oklch(0.92 0 0);
-        --card: oklch(0.100 0.012 37);             /* warm dark surface — elevated above bg */
+        --card: oklch(0.042 0 0);                  /* same as bg — glass overlay elevates it */
         --card-foreground: oklch(0.92 0 0);
-        --popover: oklch(0.100 0.012 37);
+        --popover: oklch(0.082 0.018 37);
         --popover-foreground: oklch(0.92 0 0);
         --primary: oklch(0.644 0.238 37);          /* #FF5722 */
         --primary-foreground: var(--color-white);
         --secondary: oklch(0.752 0.168 42);        /* #FF8A50 */
         --secondary-foreground: var(--color-white);
-        --muted: oklch(0.100 0.012 37);
+        --muted: oklch(0.082 0.018 37);            /* sidebar tone */
         --muted-foreground: oklch(0.500 0 0);
-        --accent: oklch(0.140 0.020 37);           /* warm hover state */
+        --accent: oklch(0.130 0.022 37);           /* hover state */
         --accent-foreground: oklch(0.92 0 0);
         --destructive: oklch(0.704 0.191 22.216);
-        --border: oklch(0.644 0.238 37 / 0.22);   /* real orange border — subtle glow */
-        --input: oklch(0.644 0.238 37 / 0.28);    /* slightly stronger on inputs */
-        --ring: oklch(0.644 0.238 37);             /* #FF5722 */
+        --border: oklch(0.644 0.238 37 / 0.20);   /* orange glow border */
+        --input: oklch(0.644 0.238 37 / 0.25);
+        --ring: oklch(0.644 0.238 37);
         --chart-1: oklch(0.644 0.238 37);
         --chart-2: oklch(0.752 0.168 42);
         --chart-3: var(--primary-300);
         --chart-4: var(--primary-200);
         --chart-5: var(--primary-100);
-        --sidebar: oklch(0.082 0.018 37);          /* warm orange-dark — clearly distinct from bg */
-        --sidebar-foreground: oklch(0.705 0 0);
-        --sidebar-primary: oklch(0.644 0.238 37);  /* #FF5722 */
+        --sidebar: oklch(0.065 0.012 37);          /* one step above bg, orange-warm */
+        --sidebar-foreground: oklch(0.700 0 0);
+        --sidebar-primary: oklch(0.644 0.238 37);
         --sidebar-primary-foreground: var(--color-white);
-        --sidebar-accent: oklch(0.140 0.020 37);   /* warm hover */
+        --sidebar-accent: oklch(0.130 0.022 37);
         --sidebar-accent-foreground: oklch(0.92 0 0);
-        --sidebar-border: oklch(0.644 0.238 37 / 0.40);  /* orange separator */
+        --sidebar-border: oklch(0.644 0.238 37 / 0.35);
         --sidebar-ring: oklch(0.644 0.238 37);
     }
 }
