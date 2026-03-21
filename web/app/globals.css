@@ -233,8 +233,8 @@
     color: oklch(0.93 0.04 37) !important;
   }
 
-  /* Nav text: futuristic letter spacing */
-  html.dark body[data-theme-preset="paione"] [data-slot="sidebar-menu-button"] span:last-child {
+  /* Nav text: futuristic letter spacing — scoped to content area only, not header logo */
+  html.dark body[data-theme-preset="paione"] [data-sidebar="content"] [data-slot="sidebar-menu-button"] span:last-child {
     letter-spacing: 0.06em;
     font-size: 0.795rem;
   }
