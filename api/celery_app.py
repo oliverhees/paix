@@ -29,8 +29,9 @@ celery.conf.update(
     },
 )
 
-# Auto-discover tasks
-celery.autodiscover_tasks(["tasks"])
+# Register task modules explicitly
+import tasks.proactive  # noqa: F401, E402
+import tasks.memory     # noqa: F401, E402
 
 
 # Beat schedule — periodic tasks

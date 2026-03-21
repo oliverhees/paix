@@ -116,7 +116,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <Brain className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">PAIONE</span>
+                  <span className="truncate font-semibold">
+                    <span className="text-sidebar-primary">PAI</span>
+                    <span>ONE</span>
+                  </span>
                   <span className="truncate text-xs text-sidebar-foreground/70">
                     Personal AI · ONE
                   </span>
@@ -182,7 +185,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">PAIONE</span>
+                  <span className="truncate font-semibold">
+                    <span className="text-sidebar-primary">PAI</span>
+                    <span>ONE</span>
+                  </span>
                   <span className="truncate text-xs text-sidebar-foreground/70">Personal AI</span>
                 </div>
               </Link>

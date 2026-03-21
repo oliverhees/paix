@@ -1,1 +1,1 @@
-"""PAIONE Celery Tasks — background jobs for proactive features and memory."""
+"""PAIONE background task modules."""
